@@ -22,5 +22,5 @@ bool operator==(const Color &c1, const Color &c2) {
 }
 
 ostream &operator<<(ostream &out, const Color &c) {
-	return out << format("({}, {}, {})", c.red, c.green, c.blue);
+	return out << "(" << c.red << ", " << c.green << ", " << c.blue << ")";
 }

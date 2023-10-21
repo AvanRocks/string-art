@@ -20,6 +20,7 @@ public:
 	unsigned getWidth() const;
 	unsigned getHeight() const;
 
+	// 0-indexed
 	Color getPixelColor(unsigned x, unsigned y) const;
 	void setPixelColor(unsigned x, unsigned y, const Color &c);
 

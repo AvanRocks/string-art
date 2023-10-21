@@ -1,16 +1,20 @@
 #include <iostream>
-#include <format>
 #include <cmath>
 #include <set>
 #include <queue>
 #include <limits>
 #include <stdexcept>
 #include <algorithm>
-#include <random>
+#include <array>
 
 #include "string-art.h"
 #include "image.h"
+#include "bit.h"
 using namespace std;
+
+struct Point {
+	int x, y;
+};
 
 void StringArtParams::validate() const {
 	if (this->inputImageFilename.size() == 0) {
@@ -56,7 +60,7 @@ double euclideanDistanceCost(const Color& c1, const Color& c2) {
 }
 
 // get the coordinates of the nth peg (0-indexed)
-pair<int, int> getPegCoords(int n, int N, const Image &img) {
+Point getPegCoords(int n, int N, const Image &img) {
 	double theta = 2.0 * numbers::pi * n / N;
 	double x = cos(theta);
 	double y = sin(theta);
@@ -70,109 +74,197 @@ pair<int, int> getPegCoords(int n, int N, const Image &img) {
 	return { imgX, imgY };
 }
 
-void visit(const Image &reference, queue<pair<int, int>> &q, const set<pair<int, int>> &visited, int x, int y) {
-	if (0 <= x && x < reference.getWidth() && 0 <= y && y < reference.getHeight() && !visited.contains({x, y})) {
-		q.emplace(x, y);
-	}
-}
+bool useBit = true;
 
-template<typename BfsCallback>
-void bfs(const Image &reference, const pair<int, int> &pos1, const pair<int, int> &pos2, BfsCallback callback) {
-	//cout << format("starting bfs from ({}, {})", start.first, start.second) << endl;
-
-	// a loose bounding box around pos1 and pos2
-	const int EPS = 5;
-	int left = min(pos1.first, pos2.first) - EPS;
-	int right = max(pos1.first, pos2.first) + EPS;
-	int top = min(pos1.second, pos2.second) - EPS;
-	int bottom = max(pos1.second, pos2.second) + EPS;
-
-	set<pair<int, int>> visited;
-	queue<pair<int, int>> q;
-	q.push(pos1);
-	while (!q.empty()) {
-		pair<int, int> curr = q.front();
-		q.pop();
-		if (visited.contains(curr)) continue;
-		// check if curr is in the loose bounding box defined above
-		if (!(left <= curr.first && curr.first <= right && top <= curr.second && curr.second <= bottom)) continue;
-
-		visited.emplace(curr);
-		//cout << format("visiting ({}, {})", curr.first, curr.second) << endl;
-
-		if (callback(curr)) {
-			visit(reference, q, visited, curr.first - 1, curr.second);
-			visit(reference, q, visited, curr.first + 1, curr.second);
-			visit(reference, q, visited, curr.first, curr.second - 1);
-			visit(reference, q, visited, curr.first, curr.second + 1);
-			visit(reference, q, visited, curr.first - 1, curr.second - 1);
-			visit(reference, q, visited, curr.first - 1, curr.second + 1);
-			visit(reference, q, visited, curr.first + 1, curr.second - 1);
-			visit(reference, q, visited, curr.first + 1, curr.second + 1);
-		}
-	}
-}
-
-// return the distance of point r from the line defined by pq
-double getDistance(const pair<int, int> &p, const pair<int, int> &q, const pair<int, int> &r) {
-	// See: https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
-	return abs( (q.first - p.first) * (p.second - r.second) - (p.first - r.first) * (q.second - p.second) ) 
-							/ (double) sqrt( pow(q.first - p.first, 2) + pow(q.second - p.second, 2) );
-}
-
+// calculate the improvement that would be gained by drawing a line
 double calcImprovement(
-		const Image &reference, 
-		const Image &canvas, 
-		const pair<int, int> &pos1, 
-		const pair<int, int> &pos2, 
+		const Image &reference,
+		const array<Bit<double>, 3> &referenceBits,
+		const Image &canvas,
+		const array<Bit<double>, 3> &canvasBits,
+		const Point &pos1,
+		const Point &pos2,
 		const StringArtParams &params
 		) 
 {
 
 	double totalImprovement = 0;
+
+	// number of rectangles visited
 	int numVisited = 0;
-	bfs(reference, pos1, pos2, [&] (const pair<int, int> &curr) -> bool {
-		// calculate old cost
-		Color referencePixelColor = reference.getPixelColor(curr.first, curr.second);
-		Color oldPixelColor = canvas.getPixelColor(curr.first, curr.second);
-		double oldCost = params.costFunc(referencePixelColor, oldPixelColor);
 
-		double distance = getDistance(pos1, pos2, curr);
-		double thickness = params.thicknessFunc(distance, reference.getWidth());
-		if (thickness == 0) return false;
-		//cout << format("distance: {}, thickness: {}", distance, thickness) << endl;
-		Color newPixelColor = Color::interp(oldPixelColor, params.stringColor, thickness);
+	bool leftToRight = abs(pos1.x - pos2.x) > abs(pos1.y - pos2.y);
 
-		double newCost = params.costFunc(referencePixelColor, newPixelColor);
+	if (leftToRight) {
+		Point start = (pos1.x < pos2.x) ? pos1 : pos2;
+		Point end = (pos1.x < pos2.x) ? pos2 : pos1;
 
-		//cout << format("oldCost: {}, newCost: {}", oldCost, newCost) << endl;
+		// slope of line from start to end
+		double m = (double)(end.y - start.y) / (end.x - start.x);
+		int width = reference.getWidth();
+		int height = reference.getHeight();
 
-		// TODO: check if totalImprovement overflows
-		double improvement = oldCost - newCost;
-		totalImprovement += improvement;
+		// visit each rectangle
+		for (int x1 = start.x, x2 = 0; x1 < end.x; x1 = x2, numVisited++) {
+			int y1 = round(m * (x1 - start.x) + start.y);
+			x2 = min(x1 + params.rectSize, end.x);
+			int y2 = round(m * (x2 - start.x) + start.y);
+			int midX = (x1 + x2) / 2;
+			int midY = (y1 + y2) / 2;
+			int boxLeft = max(midX - params.rectSize / 2, 0);
+			int boxRight = min(midX + params.rectSize / 2, width - 1);
+			int boxTop = max(midY - params.rectSize / 2, 0);
+			int boxBottom = min(midY + params.rectSize / 2, height - 1);
 
-		numVisited++;
+			// calculate average color in this rectangle in the reference and canvas images
+			Color referenceTotal(0), canvasTotal(0);
+			if (useBit) {
+				referenceTotal.red += referenceBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
+				referenceTotal.green += referenceBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
+				referenceTotal.blue += referenceBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
+				canvasTotal.red += canvasBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
+				canvasTotal.green += canvasBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
+				canvasTotal.blue += canvasBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
+			} else {
+				for (int y = boxTop; y <= boxBottom; y++) {
+					for (int x = boxLeft; x <= boxRight; x++) {
+						Color c = reference.getPixelColor(x, y);
+						referenceTotal.red += c.red;
+						referenceTotal.green += c.green;
+						referenceTotal.blue += c.blue;
+						c = canvas.getPixelColor(x, y);
+						canvasTotal.red += c.red;
+						canvasTotal.green += c.green;
+						canvasTotal.blue += c.blue;
+					}
+				}
+			}
 
-		return true;
-	});
+			// number of squares in the rectangle
+			int area = (boxRight - boxLeft + 1) * (boxBottom - boxTop + 1);
 
-	//cout << format("total improvement: {}", totalImprovement) << endl;
+			Color referenceAverage(referenceTotal);
+			referenceAverage.red /= area;
+			referenceAverage.green /= area;
+			referenceAverage.blue /= area;
+
+			Color canvasAverage(canvasTotal);
+			canvasAverage.red /= area;
+			canvasAverage.green /= area;
+			canvasAverage.blue /= area;
+
+			double oldCost = params.costFunc(referenceAverage, canvasAverage);
+
+			// calculate what the average color in the canvas would be if we drew the string here
+			// TODO: support string thickness
+			for (int x = x1; x <= x2; x++) {
+				int y = round(m * (x - start.x) + start.y);
+				Color c = canvas.getPixelColor(x, y);
+				canvasTotal.red -= c.red;
+				canvasTotal.green -= c.green;
+				canvasTotal.blue -= c.blue;
+				canvasTotal.red += params.stringColor.red;
+				canvasTotal.green += params.stringColor.green;
+				canvasTotal.blue += params.stringColor.blue;
+			}
+
+			Color stringAverage(canvasTotal);
+			stringAverage.red /= area;
+			stringAverage.green /= area;
+			stringAverage.blue /= area;
+
+			double newCost = params.costFunc(referenceAverage, stringAverage);
+
+			totalImprovement += oldCost - newCost;
+		}
+	} else {
+		// top to bottom
+		Point start = (pos1.y < pos2.y) ? pos1 : pos2;
+		Point end = (pos1.y < pos2.y) ? pos2 : pos1;
+
+		// reciprocal of slope of line from start to end
+		double mInv = (double)(end.x - start.x) / (end.y - start.y);
+		int width = reference.getWidth();
+		int height = reference.getHeight();
+
+		// visit each rectangle
+		for (int y1 = start.y, y2 = 0; y1 < end.y; y1 = y2, numVisited++) {
+			int x1 = round(mInv * (y1 - start.y) + start.x);
+			y2 = min(y1 + params.rectSize, end.y);
+			int x2 = round(mInv * (y2 - start.y) + start.x);
+			int midX = (x1 + x2) / 2;
+			int midY = (y1 + y2) / 2;
+			int boxLeft = max(midX - params.rectSize / 2, 0);
+			int boxRight = min(midX + params.rectSize / 2, width - 1);
+			int boxTop = max(midY - params.rectSize / 2, 0);
+			int boxBottom = min(midY + params.rectSize / 2, height - 1);
+
+			// calculate average color in this rectangle in the reference and canvas images
+			Color referenceTotal(0), canvasTotal(0);
+			
+			if (useBit) {
+				referenceTotal.red += referenceBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
+				referenceTotal.green += referenceBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
+				referenceTotal.blue += referenceBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
+				canvasTotal.red += canvasBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
+				canvasTotal.green += canvasBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
+				canvasTotal.blue += canvasBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
+			} else {
+				for (int y = boxTop; y <= boxBottom; y++) {
+					for (int x = boxLeft; x <= boxRight; x++) {
+						Color c = reference.getPixelColor(x, y);
+						referenceTotal.red += c.red;
+						referenceTotal.green += c.green;
+						referenceTotal.blue += c.blue;
+						c = canvas.getPixelColor(x, y);
+						canvasTotal.red += c.red;
+						canvasTotal.green += c.green;
+						canvasTotal.blue += c.blue;
+					}
+				}
+			}
+
+			// number of squares in the rectangle
+			int area = (boxRight - boxLeft + 1) * (boxBottom - boxTop + 1);
+
+			Color referenceAverage(referenceTotal);
+			referenceAverage.red /= area;
+			referenceAverage.green /= area;
+			referenceAverage.blue /= area;
+
+			Color canvasAverage(canvasTotal);
+			canvasAverage.red /= area;
+			canvasAverage.green /= area;
+			canvasAverage.blue /= area;
+
+			double oldCost = params.costFunc(referenceAverage, canvasAverage);
+
+			// calculate what the average color in the canvas would be if we drew the string here
+			// TODO: support string thickness
+			for (int y = y1; y <= y2; y++) {
+				int x = round(mInv * (y - start.y) + start.x);
+				Color c = canvas.getPixelColor(x, y);
+				canvasTotal.red -= c.red;
+				canvasTotal.green -= c.green;
+				canvasTotal.blue -= c.blue;
+				canvasTotal.red += params.stringColor.red;
+				canvasTotal.green += params.stringColor.green;
+				canvasTotal.blue += params.stringColor.blue;
+			}
+
+			Color stringAverage(canvasTotal);
+			stringAverage.red /= area;
+			stringAverage.green /= area;
+			stringAverage.blue /= area;
+
+			double newCost = params.costFunc(referenceAverage, stringAverage);
+
+			totalImprovement += oldCost - newCost;
+		}
+	}
+
 	return totalImprovement / numVisited;
-}
-
-
-random_device rd;
-mt19937 rng(rd());
-
-bool randChance(double probSuccess) {
-	unsigned randomNum = rng();
-	return randomNum < probSuccess * mt19937::max();
-}
-
-int randNum(int min, int max) {
-	int range = max - min + 1;
-	int randomNum = rng() % range;
-	return randomNum + min;
+	//return totalImprovement;
 }
 
 // The canvas image is the output of the string art drawing. However, we want
@@ -180,17 +272,41 @@ int randNum(int min, int max) {
 // This is why the canvas image is taken as a parameter.
 void draw(const Image& reference, Image& canvas, const StringArtParams& params) {
 	int currPegNum = 0, prevPegNum = -1;
+	// count the number of consecutive iterations with zero max improvement
+	int countZero = 0;
 	for (int iter = 0; iter < params.numIters; iter++) {
-		pair<int, int> currPegPos = getPegCoords(currPegNum, params.numPegs, canvas);
+
+		// make the bits
+		unsigned width = reference.getWidth();
+		unsigned height = reference.getHeight();
+		array<Bit<double>, 3> referenceBits {{{width, height}, {width, height}, {width, height}}};
+		array<Bit<double>, 3> canvasBits {{{width, height}, {width, height}, {width, height}}};
+		for (unsigned y = 0; y < height; y++) {
+			for (unsigned x = 0; x < width; x++) {
+				Color c = reference.getPixelColor(x, y);
+				referenceBits[0].update(x, y, c.red);
+				referenceBits[1].update(x, y, c.green);
+				referenceBits[2].update(x, y, c.blue);
+				c = canvas.getPixelColor(x, y);
+				canvasBits[0].update(x, y, c.red);
+				canvasBits[1].update(x, y, c.green);
+				canvasBits[2].update(x, y, c.blue);
+			}
+		}
+
+		Point currPegPos = getPegCoords(currPegNum, params.numPegs, canvas);
 		double maxImprovement = -numeric_limits<double>::infinity();
 		int bestPegNum = -1;
 
-		#pragma omp parallel for
+		#pragma omp parallel for num_threads(4)
 		for (int nextPegNum = 0; nextPegNum < params.numPegs; nextPegNum++) {
 			if (nextPegNum == prevPegNum || nextPegNum == currPegNum) continue;
+
+			// TODO decide whether to keep this or not
 			if (abs(nextPegNum - prevPegNum) < 10) continue;
-			pair<int, int> nextPegPos = getPegCoords(nextPegNum, params.numPegs, canvas);
-			double improvement = calcImprovement(reference, canvas, currPegPos, nextPegPos, params);
+
+			Point nextPegPos = getPegCoords(nextPegNum, params.numPegs, canvas);
+			double improvement = calcImprovement(reference, referenceBits, canvas, canvasBits, currPegPos, nextPegPos, params);
 			if (improvement > maxImprovement) {
 				#pragma omp atomic write
 				maxImprovement = improvement;
@@ -199,34 +315,64 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			}
 		}
 
-		if (randChance(0.1)) bestPegNum += randNum(-10, 10);
-
 		if (iter % 100 == 0) {
-			cout << format("done {}", iter) << endl;
-			cout << format("max improvement {}", maxImprovement) << endl;
+			cout << "done " << iter << endl;
+			cout << "max improvement " << maxImprovement << endl;
+			canvas.write(params.outputImageFilename);
 		}
-		//cout << format("curr peg pos ({}, {})", currPegPos.first, currPegPos.second) << endl;
-		//cout << format("curr peg num: {}", currPegNum) << endl;
 
-		pair<int, int> bestPegPos = getPegCoords(bestPegNum, params.numPegs, canvas);
-		bfs(reference, currPegPos, bestPegPos, [&] (const pair<int, int> &curr) -> bool {
-			Color oldPixelColor = canvas.getPixelColor(curr.first, curr.second);
+		Point bestPegPos = getPegCoords(bestPegNum, params.numPegs, canvas);
 
-			double distance = getDistance(currPegPos, bestPegPos, curr);
-			double thickness = params.thicknessFunc(distance, reference.getWidth());
-			if (thickness == 0) return false;
-			Color newPixelColor = Color::interp(oldPixelColor, params.stringColor, thickness);
+		// draw the line
+		bool leftToRight = abs(currPegPos.x - bestPegPos.x) > abs(currPegPos.y - bestPegPos.y);
+		if (leftToRight) {
+			Point start = (currPegPos.x < bestPegPos.x) ? currPegPos : bestPegPos;
+			Point end = (currPegPos.x < bestPegPos.x) ? bestPegPos : currPegPos;
 
-			canvas.setPixelColor(curr.first, curr.second, newPixelColor);
+			// slope of line from start to end
+			double m = (double)(end.y - start.y) / (end.x - start.x);
 
-			return true;
-		});
+			// draw the line to the canvas
+			for (int x = start.x; x <= end.x; x++) {
+				int y = round(m * (x - start.x) + start.y);
+				Color orig = canvas.getPixelColor(x, y);
+				canvas.setPixelColor(x, y, params.stringColor);
+				canvasBits[0].update(x, y, params.stringColor.red - orig.red);
+				canvasBits[1].update(x, y, params.stringColor.green - orig.green);
+				canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
+			}
+
+		} else {
+			// top to bottom
+			Point start = (currPegPos.y < bestPegPos.y) ? currPegPos : bestPegPos;
+			Point end = (currPegPos.y < bestPegPos.y) ? bestPegPos : currPegPos;
+
+			// reciprocal of slope of line from start to end
+			double mInv = (double)(end.x - start.x) / (end.y - start.y);
+
+			// draw the line to the canvas
+			for (int y = start.y; y <= end.y; y++) {
+				int x = round(mInv * (y - start.y) + start.x);
+				Color orig = canvas.getPixelColor(x, y);
+				canvas.setPixelColor(x, y, params.stringColor);
+				canvasBits[0].update(x, y, params.stringColor.red - orig.red);
+				canvasBits[1].update(x, y, params.stringColor.green - orig.green);
+				canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
+			}
+		}
 
 		prevPegNum = currPegNum;
 		currPegNum = bestPegNum;
 
-		if (maxImprovement < 0) {
-			cout << format("Stopped early at iteration number {}", iter) << endl;
+		if (maxImprovement <= 0) {
+			countZero++;
+			cout << "max improvement 0" << endl;
+		} else {
+			countZero = 0;
+		}
+
+		if (countZero == 100) {
+			cout << "Stopping early due to " << countZero << " consecutive iterations with no improvement" << endl;
 			break;
 		}
 	}
@@ -234,25 +380,6 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 }
 
 void makeStringArt(const StringArtParams& params) {
-	/*
-	Image img {params.inputImageFilename};
-	Image output {WHITE, img.getWidth(), img.getHeight()};
-
-	for (int i = 0; i < params.numPegs; i++) {
-		auto pos = getPegCoords(i, params.numPegs, output);
-		output.setPixelColor(pos.first, pos.second, BLACK);
-	}
-	output.write("tmp/test.png");
-	*/
-
-	/*
-	pair<int, int> p {0, 0};
-	pair<int, int> q {1, 100};
-	pair<int, int> r {0.5, 51};
-	cout << getDistance(p, q, r) << endl;
-	return;
-	*/
-
 	params.validate();
 
 	Image img {params.inputImageFilename};
@@ -261,7 +388,7 @@ void makeStringArt(const StringArtParams& params) {
 	if (params.grayscaleInput) {
 		img.convertToGrayscale();
 	}
-	img.write("tmp/grayscale.tiff");
+	img.write("tmp/grayscale.png");
 
 	if (params.rgbOutput) {
 		// do three passes, one for each color

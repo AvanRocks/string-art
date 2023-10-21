@@ -33,6 +33,7 @@ public:
 	Color backgroundColor {WHITE};
 	int numPegs {200}; 
 	int numIters {10000};
+	int rectSize {10};
 	ThicknessFunc thicknessFunc {trapezoidThickness};
 	CostFunc costFunc {euclideanDistanceCost};
 

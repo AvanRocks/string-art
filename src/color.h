@@ -2,7 +2,6 @@
 #define COLOR_H
 
 #include <iostream>
-#include <format>
 
 struct Color {
 	double red, green, blue;
