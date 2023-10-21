@@ -2,4 +2,4 @@
 
 using namespace Magick;
 
-const Quantum QRange {QuantumRange};
+const Quantum QRange {MaxRGB};
