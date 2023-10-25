@@ -78,12 +78,8 @@ void Image::write(std::string filename) {
 	try {
 		copy.write(filename);
 	} catch (Magick::Warning &warning) {
-		if (warning.what() == string{"Magick: profile 'icc': 'RGB ': RGB color space not permitted on grayscale PNG `tmp/grayscale.png' @ warning/png.c/MagickPNGWarningHandler/1667"}) {
-			// ignore
-			// See: https://github.com/ImageMagick/ImageMagick/discussions/6292
-		} else {
-			throw;
-		}
+		// ignore
+		// See: https://github.com/ImageMagick/ImageMagick/discussions/6292
 	}
 }
 
