@@ -366,7 +366,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 
 		if (maxImprovement <= 0) {
 			countZero++;
-			cout << "max improvement 0" << endl;
+			//cout << "max improvement 0" << endl;
 		} else {
 			countZero = 0;
 		}
