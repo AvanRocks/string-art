@@ -17,12 +17,24 @@ typedef void (*StringParamFunc)(StringArtParams &params, string arg);
 typedef void (*NoParamFunc)(StringArtParams &params);
 typedef void (*HelpFunc)(char *name);
 
+int getHexDigit(char c) {
+	if ('0' <= c && c <= '9') {
+		return c - '0';
+	} else if ('A' <= c && c <= 'F') {
+		return (c - 'A') + 10;
+	} else if ('a' <= c && c <= 'f') {
+		return (c - 'a') + 10;
+	} else {
+		throw logic_error("invalid hex code");
+	}
+}
+
 Color getColor(string color) {
 	if (color[0] == '#') {
 		// hex code
-		int red =  (color[1] - '0') * 16 + (color[2] - '0');
-		int green =  (color[3] - '0') * 16 + (color[4] - '0');
-		int blue =  (color[5] - '0') * 16 + (color[6] - '0');
+		int red =  getHexDigit(color[1]) * 16 + getHexDigit(color[2]);
+		int green =  getHexDigit(color[3]) * 16 + getHexDigit(color[4]);
+		int blue =  getHexDigit(color[5]) * 16 + getHexDigit(color[6]);
 		return Color{red / 256.0, green / 256.0, blue / 256.0}; 
 	} else {
 		return Color{stod(color.substr(1))};
