@@ -298,7 +298,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 		double maxImprovement = -numeric_limits<double>::infinity();
 		int bestPegNum = -1;
 
-		#pragma omp parallel for num_threads(4)
+		#pragma omp parallel for
 		for (int nextPegNum = 0; nextPegNum < params.numPegs; nextPegNum++) {
 			if (nextPegNum == prevPegNum || nextPegNum == currPegNum) continue;
 
