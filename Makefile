@@ -4,7 +4,7 @@ OBJECTS = $(addprefix build/,${SRC:.cc=.o})
 DEPENDS = ${OBJECTS:.o=.d}
 
 CXX = g++
-CXXFLAGS = -O3 -std=c++20 -Wall -Werror=vla -MMD
+CXXFLAGS = -Ofast -std=c++20 -Wall -Werror=vla -MMD
 DBG_CXXFLAGS = -g -std=c++20 -Wall -Werror=vla -MMD
 #LIBS = $(shell Magick++-config --cppflags --cxxflags)
 #LDFLAGS = $(shell Magick++-config --ldflags --libs) -fopenmp
