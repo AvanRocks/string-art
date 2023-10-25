@@ -10,7 +10,10 @@
 #include "string-art.h"
 #include "image.h"
 #include "bit.h"
+#include "color.h"
 using namespace std;
+
+typedef unsigned long long ull;
 
 struct Point {
 	int x, y;
@@ -323,44 +326,6 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 
 		Point bestPegPos = getPegCoords(bestPegNum, params.numPegs, canvas);
 
-		// draw the line
-		bool leftToRight = abs(currPegPos.x - bestPegPos.x) > abs(currPegPos.y - bestPegPos.y);
-		if (leftToRight) {
-			Point start = (currPegPos.x < bestPegPos.x) ? currPegPos : bestPegPos;
-			Point end = (currPegPos.x < bestPegPos.x) ? bestPegPos : currPegPos;
-
-			// slope of line from start to end
-			double m = (double)(end.y - start.y) / (end.x - start.x);
-
-			// draw the line to the canvas
-			for (int x = start.x; x <= end.x; x++) {
-				int y = round(m * (x - start.x) + start.y);
-				Color orig = canvas.getPixelColor(x, y);
-				canvas.setPixelColor(x, y, params.stringColor);
-				canvasBits[0].update(x, y, params.stringColor.red - orig.red);
-				canvasBits[1].update(x, y, params.stringColor.green - orig.green);
-				canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
-			}
-
-		} else {
-			// top to bottom
-			Point start = (currPegPos.y < bestPegPos.y) ? currPegPos : bestPegPos;
-			Point end = (currPegPos.y < bestPegPos.y) ? bestPegPos : currPegPos;
-
-			// reciprocal of slope of line from start to end
-			double mInv = (double)(end.x - start.x) / (end.y - start.y);
-
-			// draw the line to the canvas
-			for (int y = start.y; y <= end.y; y++) {
-				int x = round(mInv * (y - start.y) + start.x);
-				Color orig = canvas.getPixelColor(x, y);
-				canvas.setPixelColor(x, y, params.stringColor);
-				canvasBits[0].update(x, y, params.stringColor.red - orig.red);
-				canvasBits[1].update(x, y, params.stringColor.green - orig.green);
-				canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
-			}
-		}
-
 		prevPegNum = currPegNum;
 		currPegNum = bestPegNum;
 
@@ -376,15 +341,75 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			break;
 		}
 	}
+}
 
+void drawLine(Image &img, Point p, Point q, const StringArtParams &params) {
+	bool leftToRight = abs(p.x - q.x) > abs(p.y - q.y);
+	if (leftToRight) {
+		Point start = (p.x < q.x) ? p : q;
+		Point end = (p.x < q.x) ? q : p;
+
+		// slope of line from start to end
+		double m = (double)(end.y - start.y) / (end.x - start.x);
+
+		// draw the line to the canvas
+		for (int x = start.x; x <= end.x; x++) {
+			int y = round(m * (x - start.x) + start.y);
+			img.setPixelColor(x, y, params.stringColor);
+		}
+
+	} else {
+		// top to bottom
+		Point start = (p.y < q.y) ? p : q;
+		Point end = (p.y < q.y) ? q : p;
+
+		// reciprocal of slope of line from start to end
+		double mInv = (double)(end.x - start.x) / (end.y - start.y);
+
+		// draw the line to the canvas
+		for (int y = start.y; y <= end.y; y++) {
+			int x = round(mInv * (y - start.y) + start.x);
+			img.setPixelColor(x, y, params.stringColor);
+		}
+	}
 }
 
 void makeStringArt(const StringArtParams& params) {
 	params.validate();
 
-	Image img {params.inputImageFilename};
-	Image output {params.backgroundColor, img.getWidth(), img.getHeight()};
+	Image target {params.inputImageFilename};
+	Image canvas {params.backgroundColor, target.getWidth(), target.getHeight()};
 
+	const ull NUM_PEGS = params.numPegs;
+	const ull NUM_PAIRS = (NUM_PEGS * (NUM_PEGS - 1)) / 2;
+	const ull IMAGE_RES = target.getWidth() / params.rectSize; // assume square image
+	const ull NUM_PIXELS = IMAGE_RES * IMAGE_RES;
+
+	cout << "num pairs: " << NUM_PAIRS << endl;
+	cout << "num pixels: " << NUM_PIXELS << endl;
+
+	const ull N = NUM_PIXELS * NUM_PAIRS;
+	const ull SIZE = N * sizeof(float);
+	cout << "N: " << N << endl;
+	cout << "SIZE: " << SIZE / 1e6 << " MB" << endl;
+
+	// matrix A
+	float *A;
+	cudaMallocManaged((void**)&A, SIZE);
+
+	/*
+	for (int startPeg = 0; startPeg < params.numPegs; startPeg++) {
+		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++) {
+			Image tmp {canvas};
+			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
+			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
+			drawLine(tmp, startPos, endPos, params);
+		}
+	}
+	*/
+
+
+	/*
 	if (params.grayscaleInput) {
 		img.convertToGrayscale();
 	}
@@ -405,5 +430,6 @@ void makeStringArt(const StringArtParams& params) {
 	}
 
 	output.write(params.outputImageFilename);
+	*/
 }
 
