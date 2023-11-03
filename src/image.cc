@@ -48,6 +48,26 @@ Image::Image(Color c, size_t width, size_t height)
 	this->pixels = reinterpret_cast<Pixel*>(img.getPixels(0, 0, img.columns(), img.rows()));
 }
 
+Image::Image(const Color *pixelData, size_t width, size_t height) 
+	: Image{WHITE, width, height}
+{
+	for (int row = 0; row < height; row++) {
+		for (int col = 0; col < width; col++) {
+			this->setPixelColor(col, row, pixelData[row * width + col]);
+		}
+	}
+}
+
+Image::Image(const Image &other) 
+	: img{other.img}
+	, width{other.width}
+	, height{other.height}
+	, pixels{other.pixels}
+{
+	this->img.modifyImage();
+	this->pixels = reinterpret_cast<Pixel*>(this->img.getPixels(0, 0, this->img.columns(), this->img.rows()));
+}
+
 ostream& operator<<(ostream& os, const Image::Pixel &p) {
 	return os << "red: " << p.red << ", green: " << p.green << ", blue: " << p.blue << ", alpha: " << p.alpha;
 }
@@ -122,6 +142,7 @@ Color Image::getPixelColor(unsigned x, unsigned y) const {
 
 void Image::setPixelColor(unsigned x, unsigned y, const Color &c) {
 	Pixel& p = get(x, y);
+
 	p.red = static_cast<Sample>(c.red * this->maxSample());
 	p.green = static_cast<Sample>(c.green * this->maxSample());
 	p.blue = static_cast<Sample>(c.blue * this->maxSample());

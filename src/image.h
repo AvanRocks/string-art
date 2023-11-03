@@ -11,6 +11,9 @@ class Image {
 public:
 	Image(const std::string& filename);
 	Image(Color c, size_t width, size_t height);
+	Image(const Color *pixelData, size_t width, size_t height); // for debugging
+																															//
+	Image(const Image &other);
 
 	void display() const;
 
@@ -26,13 +29,13 @@ public:
 
 	using Sample = Magick::Quantum;
 	struct Pixel {
-		Sample red, green, blue, alpha;
+		Sample blue, green, red, alpha;
 	};
 private:
 	Magick::Image img;
 	size_t width, height;
-
 	Pixel *pixels;
+
 	Pixel& get(size_t x, size_t y);
 	const Pixel& get(size_t x, size_t y) const;
 	Sample maxSample() const;

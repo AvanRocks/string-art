@@ -14,8 +14,8 @@ public:
 	void update(int x, int y, T val) {
 		// increment because the bit is 1-indexed
 		x++; y++;
-		for (; x <= width; x += x&-x) {
-			for (int i = y; i <= height; i += i&-i) {
+		for (; x <= (int)width; x += x&-x) {
+			for (int i = y; i <= (int)height; i += i&-i) {
 				bit[i][x] += val;
 			}
 		}

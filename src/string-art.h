@@ -32,7 +32,7 @@ public:
 	Color stringColor {BLACK};
 	Color backgroundColor {WHITE};
 	int numPegs {200}; 
-	int numIters {10000};
+	int numIters {10};
 	int rectSize {10};
 	ThicknessFunc thicknessFunc {trapezoidThickness};
 	CostFunc costFunc {euclideanDistanceCost};

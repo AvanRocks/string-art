@@ -13,7 +13,7 @@ CXXFLAGS = -Ofast -std=c++20 -Wall -Werror=vla -MMD
 DBG_CXXFLAGS = -g -std=c++20 -Wall -Werror=vla -MMD
 # CUDA doesn't support -MMD since it makes some .cpp files in /tmp/
 # See https://icl.utk.edu/~mgates3/gpu-tutorial/cuda-examples/Makefile
-NVCC_CXXFLAGS := -Xcompiler '$(filter-out -MMD, $(CXXFLAGS))'
+NVCC_CXXFLAGS := -Xcompiler '$(filter-out -MMD, $(CXXFLAGS))' #-arch=sm_89
 NVCC_DBG_CXXFLAGS := -Xcompiler '$(filter-out -MMD, $(DBG_CXXFLAGS))'
 
 #LIBS = $(shell Magick++-config --cppflags --cxxflags)
@@ -36,7 +36,9 @@ build/%.o: src/%.cc
 
 build/%.o: src/%.cu
 	@mkdir -p build
-	$(NVCC) $(NVCC_CXXFLAGS) $(NVCC_LIBS) -c $< -o $@
+	# See https://stackoverflow.com/questions/31006581/cuda-device-unresolved-extern-function
+	# for info about the -dc option
+	$(NVCC) $(NVCC_CXXFLAGS) $(NVCC_LIBS) -dc -c $< -o $@
 
 .PHONY: debug
 

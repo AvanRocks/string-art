@@ -6,17 +6,35 @@
 #include <stdexcept>
 #include <algorithm>
 #include <array>
+#include <cstdio>
+#include <iomanip>
+#include <vector>
 
 #include "string-art.h"
 #include "image.h"
 #include "bit.h"
 #include "color.h"
+#include "matrix.h"
 using namespace std;
 
 typedef unsigned long long ull;
 
+#define cudaAssert(ans) { cudaAssertFunc((ans), __FILE__, __LINE__); }
+inline void cudaAssertFunc(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 struct Point {
 	int x, y;
+};
+
+struct Coords {
+	double x, y;
 };
 
 void StringArtParams::validate() const {
@@ -62,6 +80,20 @@ double euclideanDistanceCost(const Color& c1, const Color& c2) {
 	return sqrt( pow(dRed, 2) + pow(dGreen, 2) + pow(dBlue, 2) );
 }
 
+// plane coords refers to usual coordinates in the cartesian plane (normalized to [-1, 1])
+// image coords means the row and column in the image
+// x and y are [-1, 1] 
+Point planeToImageCoords(double x, double y, const Image &img) {
+	return { (int)round(((img.getWidth() - 1) / 2.0) * (1 + x)),
+					 (int)round(((img.getHeight() - 1) / 2.0) * (1 - y)) };
+}
+
+Coords imageToPlaneCoords(int x, int y, const Image &img) {
+	return { ((double)x + 0.5) *  (2.0 / img.getWidth()) - 1,
+					 ((double)y + 0.5) *  (2.0 / img.getHeight()) - 1 };
+
+}
+
 // get the coordinates of the nth peg (0-indexed)
 Point getPegCoords(int n, int N, const Image &img) {
 	double theta = 2.0 * numbers::pi * n / N;
@@ -71,279 +103,12 @@ Point getPegCoords(int n, int N, const Image &img) {
 	unsigned width = img.getWidth();
 	unsigned height = img.getHeight();
 
-	int imgX = round(((width - 1) / 2.0) * (1 + x));
-	int imgY = round(((height - 1) / 2.0) * (1 - y));
-
-	return { imgX, imgY };
+	return planeToImageCoords(x, y, img);
 }
 
-bool useBit = true;
+bool useBit = false;
 
-// calculate the improvement that would be gained by drawing a line
-double calcImprovement(
-		const Image &reference,
-		const array<Bit<double>, 3> &referenceBits,
-		const Image &canvas,
-		const array<Bit<double>, 3> &canvasBits,
-		const Point &pos1,
-		const Point &pos2,
-		const StringArtParams &params
-		) 
-{
-
-	double totalImprovement = 0;
-
-	// number of rectangles visited
-	int numVisited = 0;
-
-	bool leftToRight = abs(pos1.x - pos2.x) > abs(pos1.y - pos2.y);
-
-	if (leftToRight) {
-		Point start = (pos1.x < pos2.x) ? pos1 : pos2;
-		Point end = (pos1.x < pos2.x) ? pos2 : pos1;
-
-		// slope of line from start to end
-		double m = (double)(end.y - start.y) / (end.x - start.x);
-		int width = reference.getWidth();
-		int height = reference.getHeight();
-
-		// visit each rectangle
-		for (int x1 = start.x, x2 = 0; x1 < end.x; x1 = x2, numVisited++) {
-			int y1 = round(m * (x1 - start.x) + start.y);
-			x2 = min(x1 + params.rectSize, end.x);
-			int y2 = round(m * (x2 - start.x) + start.y);
-			int midX = (x1 + x2) / 2;
-			int midY = (y1 + y2) / 2;
-			int boxLeft = max(midX - params.rectSize / 2, 0);
-			int boxRight = min(midX + params.rectSize / 2, width - 1);
-			int boxTop = max(midY - params.rectSize / 2, 0);
-			int boxBottom = min(midY + params.rectSize / 2, height - 1);
-
-			// calculate average color in this rectangle in the reference and canvas images
-			Color referenceTotal(0), canvasTotal(0);
-			if (useBit) {
-				referenceTotal.red += referenceBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
-				referenceTotal.green += referenceBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
-				referenceTotal.blue += referenceBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
-				canvasTotal.red += canvasBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
-				canvasTotal.green += canvasBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
-				canvasTotal.blue += canvasBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
-			} else {
-				for (int y = boxTop; y <= boxBottom; y++) {
-					for (int x = boxLeft; x <= boxRight; x++) {
-						Color c = reference.getPixelColor(x, y);
-						referenceTotal.red += c.red;
-						referenceTotal.green += c.green;
-						referenceTotal.blue += c.blue;
-						c = canvas.getPixelColor(x, y);
-						canvasTotal.red += c.red;
-						canvasTotal.green += c.green;
-						canvasTotal.blue += c.blue;
-					}
-				}
-			}
-
-			// number of squares in the rectangle
-			int area = (boxRight - boxLeft + 1) * (boxBottom - boxTop + 1);
-
-			Color referenceAverage(referenceTotal);
-			referenceAverage.red /= area;
-			referenceAverage.green /= area;
-			referenceAverage.blue /= area;
-
-			Color canvasAverage(canvasTotal);
-			canvasAverage.red /= area;
-			canvasAverage.green /= area;
-			canvasAverage.blue /= area;
-
-			double oldCost = params.costFunc(referenceAverage, canvasAverage);
-
-			// calculate what the average color in the canvas would be if we drew the string here
-			// TODO: support string thickness
-			for (int x = x1; x <= x2; x++) {
-				int y = round(m * (x - start.x) + start.y);
-				Color c = canvas.getPixelColor(x, y);
-				canvasTotal.red -= c.red;
-				canvasTotal.green -= c.green;
-				canvasTotal.blue -= c.blue;
-				canvasTotal.red += params.stringColor.red;
-				canvasTotal.green += params.stringColor.green;
-				canvasTotal.blue += params.stringColor.blue;
-			}
-
-			Color stringAverage(canvasTotal);
-			stringAverage.red /= area;
-			stringAverage.green /= area;
-			stringAverage.blue /= area;
-
-			double newCost = params.costFunc(referenceAverage, stringAverage);
-
-			totalImprovement += oldCost - newCost;
-		}
-	} else {
-		// top to bottom
-		Point start = (pos1.y < pos2.y) ? pos1 : pos2;
-		Point end = (pos1.y < pos2.y) ? pos2 : pos1;
-
-		// reciprocal of slope of line from start to end
-		double mInv = (double)(end.x - start.x) / (end.y - start.y);
-		int width = reference.getWidth();
-		int height = reference.getHeight();
-
-		// visit each rectangle
-		for (int y1 = start.y, y2 = 0; y1 < end.y; y1 = y2, numVisited++) {
-			int x1 = round(mInv * (y1 - start.y) + start.x);
-			y2 = min(y1 + params.rectSize, end.y);
-			int x2 = round(mInv * (y2 - start.y) + start.x);
-			int midX = (x1 + x2) / 2;
-			int midY = (y1 + y2) / 2;
-			int boxLeft = max(midX - params.rectSize / 2, 0);
-			int boxRight = min(midX + params.rectSize / 2, width - 1);
-			int boxTop = max(midY - params.rectSize / 2, 0);
-			int boxBottom = min(midY + params.rectSize / 2, height - 1);
-
-			// calculate average color in this rectangle in the reference and canvas images
-			Color referenceTotal(0), canvasTotal(0);
-			
-			if (useBit) {
-				referenceTotal.red += referenceBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
-				referenceTotal.green += referenceBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
-				referenceTotal.blue += referenceBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
-				canvasTotal.red += canvasBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
-				canvasTotal.green += canvasBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
-				canvasTotal.blue += canvasBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
-			} else {
-				for (int y = boxTop; y <= boxBottom; y++) {
-					for (int x = boxLeft; x <= boxRight; x++) {
-						Color c = reference.getPixelColor(x, y);
-						referenceTotal.red += c.red;
-						referenceTotal.green += c.green;
-						referenceTotal.blue += c.blue;
-						c = canvas.getPixelColor(x, y);
-						canvasTotal.red += c.red;
-						canvasTotal.green += c.green;
-						canvasTotal.blue += c.blue;
-					}
-				}
-			}
-
-			// number of squares in the rectangle
-			int area = (boxRight - boxLeft + 1) * (boxBottom - boxTop + 1);
-
-			Color referenceAverage(referenceTotal);
-			referenceAverage.red /= area;
-			referenceAverage.green /= area;
-			referenceAverage.blue /= area;
-
-			Color canvasAverage(canvasTotal);
-			canvasAverage.red /= area;
-			canvasAverage.green /= area;
-			canvasAverage.blue /= area;
-
-			double oldCost = params.costFunc(referenceAverage, canvasAverage);
-
-			// calculate what the average color in the canvas would be if we drew the string here
-			// TODO: support string thickness
-			for (int y = y1; y <= y2; y++) {
-				int x = round(mInv * (y - start.y) + start.x);
-				Color c = canvas.getPixelColor(x, y);
-				canvasTotal.red -= c.red;
-				canvasTotal.green -= c.green;
-				canvasTotal.blue -= c.blue;
-				canvasTotal.red += params.stringColor.red;
-				canvasTotal.green += params.stringColor.green;
-				canvasTotal.blue += params.stringColor.blue;
-			}
-
-			Color stringAverage(canvasTotal);
-			stringAverage.red /= area;
-			stringAverage.green /= area;
-			stringAverage.blue /= area;
-
-			double newCost = params.costFunc(referenceAverage, stringAverage);
-
-			totalImprovement += oldCost - newCost;
-		}
-	}
-
-	return totalImprovement / numVisited;
-	//return totalImprovement;
-}
-
-// The canvas image is the output of the string art drawing. However, we want
-// to be able to draw multiple times on the same canvas with different colors.
-// This is why the canvas image is taken as a parameter.
-void draw(const Image& reference, Image& canvas, const StringArtParams& params) {
-	int currPegNum = 0, prevPegNum = -1;
-	// count the number of consecutive iterations with zero max improvement
-	int countZero = 0;
-	for (int iter = 0; iter < params.numIters; iter++) {
-
-		// make the bits
-		unsigned width = reference.getWidth();
-		unsigned height = reference.getHeight();
-		array<Bit<double>, 3> referenceBits {{{width, height}, {width, height}, {width, height}}};
-		array<Bit<double>, 3> canvasBits {{{width, height}, {width, height}, {width, height}}};
-		for (unsigned y = 0; y < height; y++) {
-			for (unsigned x = 0; x < width; x++) {
-				Color c = reference.getPixelColor(x, y);
-				referenceBits[0].update(x, y, c.red);
-				referenceBits[1].update(x, y, c.green);
-				referenceBits[2].update(x, y, c.blue);
-				c = canvas.getPixelColor(x, y);
-				canvasBits[0].update(x, y, c.red);
-				canvasBits[1].update(x, y, c.green);
-				canvasBits[2].update(x, y, c.blue);
-			}
-		}
-
-		Point currPegPos = getPegCoords(currPegNum, params.numPegs, canvas);
-		double maxImprovement = -numeric_limits<double>::infinity();
-		int bestPegNum = -1;
-
-		#pragma omp parallel for
-		for (int nextPegNum = 0; nextPegNum < params.numPegs; nextPegNum++) {
-			if (nextPegNum == prevPegNum || nextPegNum == currPegNum) continue;
-
-			// TODO decide whether to keep this or not
-			if (abs(nextPegNum - prevPegNum) < 10) continue;
-
-			Point nextPegPos = getPegCoords(nextPegNum, params.numPegs, canvas);
-			double improvement = calcImprovement(reference, referenceBits, canvas, canvasBits, currPegPos, nextPegPos, params);
-			if (improvement > maxImprovement) {
-				#pragma omp atomic write
-				maxImprovement = improvement;
-				#pragma omp atomic write
-				bestPegNum = nextPegNum;
-			}
-		}
-
-		if (iter % 100 == 0) {
-			cout << "done " << iter << endl;
-			cout << "max improvement " << maxImprovement << endl;
-			canvas.write(params.outputImageFilename);
-		}
-
-		Point bestPegPos = getPegCoords(bestPegNum, params.numPegs, canvas);
-
-		prevPegNum = currPegNum;
-		currPegNum = bestPegNum;
-
-		if (maxImprovement <= 0) {
-			countZero++;
-			//cout << "max improvement 0" << endl;
-		} else {
-			countZero = 0;
-		}
-
-		if (countZero == 100) {
-			cout << "Stopping early due to " << countZero << " consecutive iterations with no improvement" << endl;
-			break;
-		}
-	}
-}
-
-void drawLine(Image &img, Point p, Point q, const StringArtParams &params) {
+void drawLine(Image &img, Point p, Point q, const StringArtParams &params, array<Bit<double>, 3> *bitsPtr = nullptr) {
 	bool leftToRight = abs(p.x - q.x) > abs(p.y - q.y);
 	if (leftToRight) {
 		Point start = (p.x < q.x) ? p : q;
@@ -355,7 +120,14 @@ void drawLine(Image &img, Point p, Point q, const StringArtParams &params) {
 		// draw the line to the canvas
 		for (int x = start.x; x <= end.x; x++) {
 			int y = round(m * (x - start.x) + start.y);
-			img.setPixelColor(x, y, params.stringColor);
+			if (useBit) {
+				Color orig = img.getPixelColor(x, y);
+				array<Bit<double>, 3> &bits = *bitsPtr;
+				bits[0].update(x, y, params.stringColor.red - orig.red);
+				bits[1].update(x, y, params.stringColor.green - orig.green);
+				bits[2].update(x, y, params.stringColor.blue - orig.blue);
+			}
+			//img.setPixelColor(x, y, params.stringColor);
 		}
 
 	} else {
@@ -369,7 +141,61 @@ void drawLine(Image &img, Point p, Point q, const StringArtParams &params) {
 		// draw the line to the canvas
 		for (int y = start.y; y <= end.y; y++) {
 			int x = round(mInv * (y - start.y) + start.x);
+			if (useBit) {
+				Color orig = img.getPixelColor(x, y);
+				array<Bit<double>, 3> &bits = *bitsPtr;
+				bits[0].update(x, y, params.stringColor.red - orig.red);
+				bits[1].update(x, y, params.stringColor.green - orig.green);
+				bits[2].update(x, y, params.stringColor.blue - orig.blue);
+			}
 			img.setPixelColor(x, y, params.stringColor);
+		}
+	}
+}
+
+__global__
+void computeGradientPart1(const Matrix<Color> A, const double *x, const Color *b, Color *y, const Color STRING_COLOR) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int row = idx; row < A.height; row += stride) {
+		y[row] = Color{0};
+
+		for (int i = 0; i < A.width; i++) {
+			Color c = A.getElement(row, i);
+			//if (c == STRING_COLOR) {
+				c *= x[i];
+			//}
+			y[row] += c;
+		}
+
+		y[row] -= b[row];
+	}
+}
+
+__global__
+void computeGradientPart2(const Matrix<Color> A, const Color *y, double *grad) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int stride = blockDim.x * gridDim.x;
+
+	for (int col = idx; col < A.width; col += stride) {
+		grad[col] = 0;
+
+		for (int i = 0; i < A.height; i++) {
+			Color c = A.getElement(i, col);
+			grad[col] += 2 * y[i] * c;
+
+			/*
+			const int n = 2;
+			double r=1,g=1,b=1;
+			for (int j = 0; j < n-1; j++) {
+				r *= y[i].red;
+				g *= y[i].green;
+				b *= y[i].red;
+			}
+			Color yPowN {r, g, b};
+			grad[col] += n * yPowN * c;
+			*/
+
 		}
 	}
 }
@@ -380,34 +206,247 @@ void makeStringArt(const StringArtParams& params) {
 	Image target {params.inputImageFilename};
 	Image canvas {params.backgroundColor, target.getWidth(), target.getHeight()};
 
-	const ull NUM_PEGS = params.numPegs;
-	const ull NUM_PAIRS = (NUM_PEGS * (NUM_PEGS - 1)) / 2;
-	const ull IMAGE_RES = target.getWidth() / params.rectSize; // assume square image
-	const ull NUM_PIXELS = IMAGE_RES * IMAGE_RES;
+	if (params.grayscaleInput) {
+		target.convertToGrayscale();
+		target.write("tmp/grayscale.png");
+	}
+
+	const unsigned NUM_PEGS = params.numPegs;
+	const unsigned NUM_PAIRS = (NUM_PEGS * (NUM_PEGS - 1)) / 2;
+	const unsigned IMAGE_RES = (int)ceil((double)target.getWidth() / params.rectSize); // assume square image
+	const unsigned NUM_PIXELS = IMAGE_RES * IMAGE_RES;
 
 	cout << "num pairs: " << NUM_PAIRS << endl;
 	cout << "num pixels: " << NUM_PIXELS << endl;
 
-	const ull N = NUM_PIXELS * NUM_PAIRS;
-	const ull SIZE = N * sizeof(float);
+	const ull N = (ull)NUM_PIXELS * NUM_PAIRS;
+	const ull SIZE = N * sizeof(Color);
 	cout << "N: " << N << endl;
 	cout << "SIZE: " << SIZE / 1e6 << " MB" << endl;
 
 	// matrix A
-	float *A;
-	cudaMallocManaged((void**)&A, SIZE);
+	Color *Adata;
+	cudaAssert( cudaMallocManaged((void**)&Adata, SIZE) );
+	Matrix<Color> A {NUM_PAIRS, NUM_PIXELS, Adata};
+
+	cout << "preprocessing ..." << endl;
+
+	if (useBit) {
+		// make the bits
+		unsigned width = canvas.getWidth();
+		unsigned height = canvas.getHeight();
+		array<Bit<double>, 3> origBits {{{width, height}, {width, height}, {width, height}}};
+		for (unsigned y = 0; y < height; y++) {
+			for (unsigned x = 0; x < width; x++) {
+				Color c = canvas.getPixelColor(x, y);
+				origBits[0].update(x, y, c.red);
+				origBits[1].update(x, y, c.green);
+				origBits[2].update(x, y, c.blue);
+			}
+		}
+	}
+
+	const int WIDTH = target.getWidth();
+	const int HEIGHT = target.getHeight();
+	for (int startPeg = 0, col = 0; startPeg < params.numPegs; startPeg++) {
+		cout << (int)round((double)col / A.width * 100) << "%" << endl;
+		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, col++) {
+			Image tmp {canvas};
+
+			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
+			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
+
+			if (useBit) {
+				//array<Bit<double>, 3> bits {origBits};
+				//drawLine(tmp, startPos, endPos, params, &bits);
+			} else {
+				drawLine(tmp, startPos, endPos, params);
+			}
+
+			if (endPeg == startPeg + 50) {
+				//tmp.display();
+			}
+
+			for (int y = 0; y < IMAGE_RES; y++) {
+				for (int x = 0; x < IMAGE_RES; x++) {
+					int top = y * params.rectSize;
+					int left = x * params.rectSize;
+					int right = min(left + params.rectSize - 1, WIDTH - 1);
+					int bottom = min(top + params.rectSize - 1, HEIGHT - 1);
+					Color totalColor {0};
+					for (int yi = top; yi <= bottom; yi++) {
+						for (int xi = left; xi <= right; xi++) {
+							Color c = tmp.getPixelColor(xi, yi);
+							totalColor += c;
+						}
+					}
+					int row = y * IMAGE_RES + x;
+					const int area = (bottom - top + 1) * (right - left + 1);
+					Color c = totalColor / area;
+
+					// invert the color (assumed grayscale)
+					// this is needed for the matrix approach to make sense
+					// also assumed that the string color is black and the background color is white
+					c = Color{1} - c;
+					A.setElement(row, col, c);
+				}
+			}
+
+		}
+	}
+
+	// debugging
+	/*
+	Image matrixA {A.elements, A.width, A.height};
+	matrixA.write("tmp/test-matrix-A.png");
+	*/
+
+	cout << "done" << endl;
+
+	// starting solution vector
+	double *x;
+	cudaAssert( cudaMallocManaged((void**)&x, A.width * sizeof(double)) );
+	for (int i = 0; i < A.width; i++) {
+		x[i] = 0;
+	}
+
+	// target image vector
+	Color *b;
+	cudaAssert( cudaMallocManaged((void**)&b, A.height * sizeof(Color)) );
+	for (int row = 0; row < IMAGE_RES; row++) {
+		for (int col = 0; col < IMAGE_RES; col++) {
+			int top = row * params.rectSize;
+			int left = col * params.rectSize;
+			int right = min(left + params.rectSize - 1, WIDTH - 1);
+			int bottom = min(top + params.rectSize - 1, HEIGHT - 1);
+			Color totalColor {0};
+			for (int yi = top; yi <= bottom; yi++) {
+				for (int xi = left; xi <= right; xi++) {
+					Color c = target.getPixelColor(xi, yi);
+					totalColor += c;
+				}
+			}
+			const int area = (bottom - top + 1) * (right - left + 1);
+			Color c = totalColor / area;
+			// invert colors
+			c = Color{1} - c;
+			b[row * IMAGE_RES + col] = c;
+		}
+	}
+
+	// intermediate vector for gradient calculation
+	Color *y;
+	cudaAssert( cudaMallocManaged((void**)&y, A.height * sizeof(Color)) );
+
+	cudaDeviceProp deviceProp;
+	cudaGetDeviceProperties(&deviceProp, 0); // 0-th device
+	//cout << "max threads per multiprocessor: " << deviceProp.maxThreadsPerMultiProcessor << endl;
+	//cout << "mutiprocessor count: " << deviceProp.multiProcessorCount << endl;
+
+	// gradient vector
+	double *grad;
+	cudaAssert( cudaMallocManaged((void**)&grad, A.width * sizeof(double)) );
+
+	const double scalingFactor = 1.0/50;
+	const int threadsPerBlock = 256;
+	const int maxNumBlocks = deviceProp.maxThreadsPerMultiProcessor / threadsPerBlock * deviceProp.multiProcessorCount;
+	const int numBlocksPart1 = min(maxNumBlocks, (A.height + threadsPerBlock - 1) / threadsPerBlock);
+	const int numBlocksPart2 = min(maxNumBlocks, (A.width + threadsPerBlock - 1) / threadsPerBlock);
+	cout << "numBlocksPart1: " << numBlocksPart1 << endl;
+	cout << "numBlocksPart2: " << numBlocksPart2 << endl;
+	cout << "maxNumBlocks: " << maxNumBlocks << endl;
+
+	for (int iter = 0; iter < params.numIters; iter++) {
+		computeGradientPart1<<<numBlocksPart1, threadsPerBlock>>>(A, x, b, y, params.stringColor);
+		cudaAssert( cudaPeekAtLastError() );
+		cudaAssert( cudaDeviceSynchronize() );
+
+		computeGradientPart2<<<numBlocksPart2, threadsPerBlock>>>(A, y, grad);
+		cudaAssert( cudaPeekAtLastError() );
+		cudaAssert( cudaDeviceSynchronize() );
+
+		cout << "gradient" << endl;
+		//for (int i = 0; i < A.width; i+=200) cout << i << ": " << grad[i] << endl;
+		int cntNeg = 0;
+		double maxGrad = INT_MIN, minGrad = INT_MAX;
+		double mag = 0;
+		for (int i = 0; i < A.width; i++) {
+			if (grad[i] < 0) cntNeg++;
+			maxGrad = max(maxGrad, grad[i]);
+			minGrad = min(minGrad, grad[i]);
+			mag += grad[i] * grad[i];
+		}
+		mag = sqrt(mag);
+		cout << "cntNeg: " << cntNeg << endl;
+		cout << "maxGrad: " << maxGrad << endl;
+		cout << "minGrad: " << minGrad << endl;
+		cout << "mag: " << mag << endl;
+
+		for (int i = 0; i < A.width; i++) {
+			x[i] -= scalingFactor * grad[i];
+			if (x[i] < 0) x[i] = 0;
+			if (x[i] > 1) x[i] = 1;
+		}
+
+		cout << "done " << iter+1 << endl;
+	}
+
+	int cntz=0;
+	for (int i = 0; i < A.width; i++) if (x[i] <= 0) cntz++;
+	cout << "cntz: " << cntz << endl;
+
+	cout << "x" << endl;
+	for (int i = 0; i < A.width; i++) cout << i << ": " << x[i] << endl;
 
 	/*
-	for (int startPeg = 0; startPeg < params.numPegs; startPeg++) {
-		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++) {
-			Image tmp {canvas};
+	cout << "x" << endl;
+	for (int i = 0; i < A.width; i++) cout << i << ": " << x[i] << endl;
+	cout << "y" << endl;
+	for (int i = 0; i < A.height; i++) cout << i << ": " << y[i] << endl;
+	cout << "gradient" << endl;
+	for (int i = 0; i < A.width; i++) cout << i << ": " << grad[i] << endl;
+	*/
+
+	cudaFree(A.elements);
+	cudaFree(Adata);
+	cudaFree(b);
+	cudaFree(y);
+	cudaFree(grad);
+
+	while (true) {
+		cout << "enter num lines: ";
+		int numLines = 0;
+		cin >> numLines;
+		if (!(0 <= numLines && numLines <= A.width)) {
+			cout << "invalid num lines" << endl;
+			continue;
+		}
+
+		cout << "drawing ...";
+		Image tmp {canvas};
+		vector<pair<double,pair<int,int>>> v;
+		for (int startPeg = 0, idx = 0; startPeg < params.numPegs; startPeg++) {
+			for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
+				v.push_back({x[idx], {startPeg, endPeg}});
+			}
+		}
+		sort(v.rbegin(), v.rend());
+		for (int i = 0; i < numLines && i < v.size(); i++) {
+			int startPeg, endPeg;
+			tie(startPeg, endPeg) = v[i].second;
+			cout << startPeg << " " << endPeg << endl;
 			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
 			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
 			drawLine(tmp, startPos, endPos, params);
 		}
+		cout << " done" << endl;
+		
+		cout << "writing ...";
+		tmp.write(params.outputImageFilename);
+		cout << " done" << endl;
 	}
-	*/
 
+	cudaFree(x);
 
 	/*
 	if (params.grayscaleInput) {
