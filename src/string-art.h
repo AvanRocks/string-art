@@ -24,6 +24,7 @@ class StringArtParams {
 public:
 	std::string inputImageFilename;
 	std::string outputImageFilename {"tmp/string-art.png"};
+	std::string matrixCacheFilename {"tmp/cache"};
 	// convert the input image to grayscale
 	bool grayscaleInput {true};
 	// do three drawing passes, one with each of a 

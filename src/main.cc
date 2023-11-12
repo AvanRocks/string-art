@@ -44,6 +44,7 @@ Color getColor(string color) {
 }
 
 void setOutputFilename(StringArtParams &params, string name) { params.outputImageFilename = name; }
+void setCacheFilename(StringArtParams &params, string name) { params.matrixCacheFilename = name; }
 void setGrayscaleInput(StringArtParams &params) { params.grayscaleInput = true; }
 void setRGBOutput(StringArtParams &params) { params.rgbOutput = true; }
 void setStringColor(StringArtParams &params, string color) { params.stringColor = getColor(color); }
@@ -77,6 +78,7 @@ void usage(char *name);
 vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, string>> cliParams 
 {
 	{{"--output", "-o"},						setOutputFilename,		"set the output image filename"},
+	{{"--cache-file", "-c"},				setCacheFilename,		"set the matrix cache filename"},
 	{{"--grayscale-input", "-g"},		setGrayscaleInput,		"convert the input image to grayscale"},
 	{{"--rgb-output", "-r"},				setRGBOutput,					"use red, green, and blue strings to generate a color image"},
 	{{"--string-color", "-s"},			setStringColor,				"set the color of the lines used to draw the image"},

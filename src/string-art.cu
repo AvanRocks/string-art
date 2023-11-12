@@ -9,11 +9,13 @@
 #include <cstdio>
 #include <iomanip>
 #include <vector>
+#include <fstream>
 
 #include "string-art.h"
 #include "image.h"
 #include "color.h"
 #include "matrix.h"
+#include "stopwatch.h"
 using namespace std;
 
 typedef unsigned long long ull;
@@ -136,6 +138,53 @@ void drawLine(Image &img, Point p, Point q, const StringArtParams &params) {
 	}
 }
 
+void generateMatrixA(Matrix<Color> &A, const Image &canvas, const StringArtParams &params) {
+	const unsigned IMAGE_RES = (int)ceil((double)canvas.getWidth() / params.rectSize); // assume square image
+
+	for (int startPeg = 0, col = 0; startPeg < params.numPegs; startPeg++) {
+		cout << (int)round((double)col / A.width * 100) << "%" << endl;
+		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, col++) {
+			Image tmp {canvas};
+
+			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
+			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
+
+			drawLine(tmp, startPos, endPos, params);
+
+			if (endPeg == startPeg + 50) {
+				//tmp.display();
+			}
+
+			// take the average color in a rectangular region
+			for (int y = 0; y < IMAGE_RES; y++) {
+				for (int x = 0; x < IMAGE_RES; x++) {
+					int top = y * params.rectSize;
+					int left = x * params.rectSize;
+					int right = min(left + params.rectSize - 1, canvas.getWidth() - 1);
+					int bottom = min(top + params.rectSize - 1, canvas.getHeight() - 1);
+					Color totalColor {0};
+					for (int yi = top; yi <= bottom; yi++) {
+						for (int xi = left; xi <= right; xi++) {
+							Color c = tmp.getPixelColor(xi, yi);
+							totalColor += c;
+						}
+					}
+					int row = y * IMAGE_RES + x;
+					const int area = (bottom - top + 1) * (right - left + 1);
+					Color c = totalColor / area;
+
+					// invert the color (assumed grayscale)
+					// this is needed for the matrix approach to make sense
+					// also assumed that the string color is black and the background color is white
+					c = Color{1} - c;
+					A.setElement(row, col, c);
+				}
+			}
+
+		}
+	}
+}
+
 const int threadsPerBlock = 768;
 
 __global__
@@ -232,6 +281,11 @@ void makeStringArt(const StringArtParams& params) {
 	params.validate();
 
 	Image target {params.inputImageFilename};
+
+	if (target.getWidth() != target.getHeight()) {
+		throw invalid_argument("non-square image");
+	}
+
 	Image canvas {params.backgroundColor, target.getWidth(), target.getHeight()};
 
 	if (params.grayscaleInput) {
@@ -247,69 +301,64 @@ void makeStringArt(const StringArtParams& params) {
 	cout << "num pairs: " << NUM_PAIRS << endl;
 	cout << "num pixels: " << NUM_PIXELS << endl;
 
+	// matrix A
 	const ull N = (ull)NUM_PIXELS * NUM_PAIRS;
 	const ull SIZE = N * sizeof(Color);
 	cout << "N: " << N << endl;
 	cout << "SIZE: " << SIZE / 1e6 << " MB" << endl;
-
-	// matrix A
 	Color *Adata;
 	cudaAssert( cudaMallocManaged((void**)&Adata, SIZE) );
 	Matrix<Color> A {NUM_PAIRS, NUM_PIXELS, Adata};
 
-	cout << "preprocessing ..." << endl;
+	ifstream cache(params.matrixCacheFilename, ios::binary);
 
 	const int WIDTH = target.getWidth();
 	const int HEIGHT = target.getHeight();
-	for (int startPeg = 0, col = 0; startPeg < params.numPegs; startPeg++) {
-		cout << (int)round((double)col / A.width * 100) << "%" << endl;
-		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, col++) {
-			Image tmp {canvas};
 
-			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
-			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
+	if (cache.fail()) {
+		startStopwatch("generating matrix A");
 
-			drawLine(tmp, startPos, endPos, params);
+		generateMatrixA(A, canvas, params);
 
-			if (endPeg == startPeg + 50) {
-				//tmp.display();
-			}
+		endStopwatch();
 
-			for (int y = 0; y < IMAGE_RES; y++) {
-				for (int x = 0; x < IMAGE_RES; x++) {
-					int top = y * params.rectSize;
-					int left = x * params.rectSize;
-					int right = min(left + params.rectSize - 1, WIDTH - 1);
-					int bottom = min(top + params.rectSize - 1, HEIGHT - 1);
-					Color totalColor {0};
-					for (int yi = top; yi <= bottom; yi++) {
-						for (int xi = left; xi <= right; xi++) {
-							Color c = tmp.getPixelColor(xi, yi);
-							totalColor += c;
-						}
-					}
-					int row = y * IMAGE_RES + x;
-					const int area = (bottom - top + 1) * (right - left + 1);
-					Color c = totalColor / area;
+		ofstream newCache(params.matrixCacheFilename, ios::binary);
 
-					// invert the color (assumed grayscale)
-					// this is needed for the matrix approach to make sense
-					// also assumed that the string color is black and the background color is white
-					c = Color{1} - c;
-					A.setElement(row, col, c);
-				}
-			}
-
+		if (newCache.fail()) {
+			throw runtime_error("Failed to write to matrix cache file.");
 		}
+
+		startStopwatch("writing to cache");
+		newCache.write(reinterpret_cast<const char*>(&params.numPegs), sizeof(params.numPegs));
+		newCache.write(reinterpret_cast<const char*>(&WIDTH), sizeof(WIDTH));
+		newCache.write(reinterpret_cast<const char*>(&HEIGHT), sizeof(HEIGHT));
+		newCache.write(reinterpret_cast<const char*>(&params.rectSize), sizeof(params.rectSize));
+		newCache.write(reinterpret_cast<const char*>(Adata), SIZE);
+		endStopwatch();
+
+	} else {
+		// read from cache
+
+		startStopwatch("reading cache")
+
+		int cacheNumPegs, cacheWidth, cacheHeight, cacheRectSize;
+		cache.read(reinterpret_cast<char*>(&cacheNumPegs), sizeof(cacheNumPegs));
+		cache.read(reinterpret_cast<char*>(&cacheWidth), sizeof(cacheWidth));
+		cache.read(reinterpret_cast<char*>(&cacheHeight), sizeof(cacheHeight));
+		cache.read(reinterpret_cast<char*>(&cacheRectSize), sizeof(cacheRectSize));
+
+		if (cacheNumPegs == params.numPegs && 
+				cacheWidth == WIDTH &&
+				cacheHeight == HEIGHT &&
+				cacheRectSize == params.rectSize)
+		{
+			cache.read(reinterpret_cast<char*>(Adata), SIZE);
+		} else {
+			throw ("cache does not match current parameters"); 
+		}
+
+		endStopwatch();
 	}
-
-	// debugging
-	/*
-	Image matrixA {A.elements, A.width, A.height};
-	matrixA.write("tmp/test-matrix-A.png");
-	*/
-
-	cout << "done" << endl;
 
 	// starting solution vector
 	double *x;
