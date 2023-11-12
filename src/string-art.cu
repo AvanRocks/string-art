@@ -221,9 +221,10 @@ void computeGradientPart1(const Matrix<Color> A, const double *x, const Color *b
 			if (threadIdx.x == 0) {
 				y[row] += tmp[0];
 			}
+
+			__syncthreads();
 		}
 
-		__syncthreads();
 		if (threadIdx.x == 0) {
 			y[row] -= b[row];
 		}
@@ -232,46 +233,45 @@ void computeGradientPart1(const Matrix<Color> A, const double *x, const Color *b
 }
 
 __global__
-void computeGradientPart2(const Matrix<Color> A, const Color *y, double *grad) {
-	int col = blockIdx.x;
-	int colStride = gridDim.x;
-	for (; col < A.width; col += colStride) {
+void computeGradientPart2(const Matrix<Color> At, const Color *y, double *grad) {
+	int row = blockIdx.x;
+	int rowStride = gridDim.x;
+	for (; row < At.height; row += rowStride) {
 		if (threadIdx.x == 0) {
-			grad[col] = 0;
+			grad[row] = 0;
 		}
 		__syncthreads();
 
-		int rowStride = blockDim.x;
-		for (int rowStart = 0; rowStart < A.height; rowStart += rowStride) {
-			int rowOffset = threadIdx.x;
-			int row = rowStart + rowOffset;
+		int colStride = blockDim.x;
+		for (int colStart = 0; colStart < At.width; colStart += colStride) {
+			int colOffset = threadIdx.x;
+			int col = colStart + colOffset;
 			__shared__ double tmp[threadsPerBlock];
 
 			// do the multiplication
-			if (row < A.height) {
-				tmp[rowOffset] = y[row] * A.getElement(row, col);
+			if (col < At.width) {
+				tmp[colOffset] = y[col] * At.getElement(row, col);
 			}
 			__syncthreads();
 
 
 			// sum across tmp fast
-			for (int n = 2; n <= rowStride; n *= 2) {
-				if (rowOffset < rowStride / n) {
-					tmp[rowOffset] += tmp[rowOffset + n / 2];
+			for (int n = 2; n <= colStride; n *= 2) {
+				if (colOffset < colStride / n) {
+					tmp[colOffset] += tmp[colOffset + n / 2];
 				}
 				__syncthreads();
 			}
 
-			__syncthreads();
 			if (threadIdx.x == 0) {
-				grad[col] += tmp[0];
+				grad[row] += tmp[0];
 			}
+
 			__syncthreads();
 		}
 
-		__syncthreads();
 		if (threadIdx.x == 0) {
-			grad[col] *= 2;
+			grad[row] *= 2;
 		}
 		__syncthreads();
 	}
@@ -360,6 +360,17 @@ void makeStringArt(const StringArtParams& params) {
 		endStopwatch();
 	}
 
+	startStopwatch("making A transpose");
+	Color *Atdata;
+	cudaAssert( cudaMallocManaged((void**)&Atdata, SIZE) );
+	Matrix<Color> At {A.height, A.width, Atdata};
+	for (int row = 0; row < At.height; row++) {
+		for (int col = 0; col < At.width; col++) {
+			At.setElement(row, col, A.getElement(col, row));
+		}
+	}
+	endStopwatch();
+
 	// starting solution vector
 	double *x;
 	cudaAssert( cudaMallocManaged((void**)&x, A.width * sizeof(double)) );
@@ -408,7 +419,7 @@ void makeStringArt(const StringArtParams& params) {
 	const double scalingFactor = 1.0/50;
 	const int maxNumBlocks = deviceProp.maxThreadsPerMultiProcessor / threadsPerBlock * deviceProp.multiProcessorCount;
 	const int numBlocksPart1 = min(maxNumBlocks, A.height);
-	const int numBlocksPart2 = min(maxNumBlocks, A.width);
+	const int numBlocksPart2 = min(maxNumBlocks, At.height);
 	cout << "numBlocksPart1: " << numBlocksPart1 << endl;
 	cout << "numBlocksPart2: " << numBlocksPart2 << endl;
 	cout << "maxNumBlocks: " << maxNumBlocks << endl;
@@ -421,7 +432,7 @@ void makeStringArt(const StringArtParams& params) {
 		//cout << "y" << endl;
 		//for (int i = 0; i < A.height; i+=50) cout << i << ": " << y[i] << endl;
 
-		computeGradientPart2<<<numBlocksPart2, threadsPerBlock>>>(A, y, grad);
+		computeGradientPart2<<<numBlocksPart2, threadsPerBlock>>>(At, y, grad);
 		cudaAssert( cudaPeekAtLastError() );
 		cudaAssert( cudaDeviceSynchronize() );
 
