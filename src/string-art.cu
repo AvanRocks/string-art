@@ -12,7 +12,6 @@
 
 #include "string-art.h"
 #include "image.h"
-#include "bit.h"
 #include "color.h"
 #include "matrix.h"
 using namespace std;
@@ -106,9 +105,7 @@ Point getPegCoords(int n, int N, const Image &img) {
 	return planeToImageCoords(x, y, img);
 }
 
-bool useBit = false;
-
-void drawLine(Image &img, Point p, Point q, const StringArtParams &params, array<Bit<double>, 3> *bitsPtr = nullptr) {
+void drawLine(Image &img, Point p, Point q, const StringArtParams &params) {
 	bool leftToRight = abs(p.x - q.x) > abs(p.y - q.y);
 	if (leftToRight) {
 		Point start = (p.x < q.x) ? p : q;
@@ -120,13 +117,6 @@ void drawLine(Image &img, Point p, Point q, const StringArtParams &params, array
 		// draw the line to the canvas
 		for (int x = start.x; x <= end.x; x++) {
 			int y = round(m * (x - start.x) + start.y);
-			if (useBit) {
-				Color orig = img.getPixelColor(x, y);
-				array<Bit<double>, 3> &bits = *bitsPtr;
-				bits[0].update(x, y, params.stringColor.red - orig.red);
-				bits[1].update(x, y, params.stringColor.green - orig.green);
-				bits[2].update(x, y, params.stringColor.blue - orig.blue);
-			}
 			img.setPixelColor(x, y, params.stringColor);
 		}
 
@@ -141,13 +131,6 @@ void drawLine(Image &img, Point p, Point q, const StringArtParams &params, array
 		// draw the line to the canvas
 		for (int y = start.y; y <= end.y; y++) {
 			int x = round(mInv * (y - start.y) + start.x);
-			if (useBit) {
-				Color orig = img.getPixelColor(x, y);
-				array<Bit<double>, 3> &bits = *bitsPtr;
-				bits[0].update(x, y, params.stringColor.red - orig.red);
-				bits[1].update(x, y, params.stringColor.green - orig.green);
-				bits[2].update(x, y, params.stringColor.blue - orig.blue);
-			}
 			img.setPixelColor(x, y, params.stringColor);
 		}
 	}
@@ -276,21 +259,6 @@ void makeStringArt(const StringArtParams& params) {
 
 	cout << "preprocessing ..." << endl;
 
-	if (useBit) {
-		// make the bits
-		unsigned width = canvas.getWidth();
-		unsigned height = canvas.getHeight();
-		array<Bit<double>, 3> origBits {{{width, height}, {width, height}, {width, height}}};
-		for (unsigned y = 0; y < height; y++) {
-			for (unsigned x = 0; x < width; x++) {
-				Color c = canvas.getPixelColor(x, y);
-				origBits[0].update(x, y, c.red);
-				origBits[1].update(x, y, c.green);
-				origBits[2].update(x, y, c.blue);
-			}
-		}
-	}
-
 	const int WIDTH = target.getWidth();
 	const int HEIGHT = target.getHeight();
 	for (int startPeg = 0, col = 0; startPeg < params.numPegs; startPeg++) {
@@ -301,12 +269,7 @@ void makeStringArt(const StringArtParams& params) {
 			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
 			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
 
-			if (useBit) {
-				//array<Bit<double>, 3> bits {origBits};
-				//drawLine(tmp, startPos, endPos, params, &bits);
-			} else {
-				drawLine(tmp, startPos, endPos, params);
-			}
+			drawLine(tmp, startPos, endPos, params);
 
 			if (endPeg == startPeg + 50) {
 				//tmp.display();
