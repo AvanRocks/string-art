@@ -153,50 +153,95 @@ void drawLine(Image &img, Point p, Point q, const StringArtParams &params, array
 	}
 }
 
+const int threadsPerBlock = 768;
+
 __global__
 void computeGradientPart1(const Matrix<Color> A, const double *x, const Color *b, Color *y, const Color STRING_COLOR) {
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	int stride = blockDim.x * gridDim.x;
-	for (int row = idx; row < A.height; row += stride) {
-		y[row] = Color{0};
+	int row = blockIdx.x;
+	int rowStride = gridDim.x;
+	for (; row < A.height; row += rowStride) {
+		if (threadIdx.x == 0) {
+			y[row] = Color{0};
+		}
+		__syncthreads();
 
-		for (int i = 0; i < A.width; i++) {
-			Color c = A.getElement(row, i);
-			//if (c == STRING_COLOR) {
-				c *= x[i];
-			//}
-			y[row] += c;
+		// consider groups of blockDim.x threads
+		int colStride = blockDim.x;
+		for (int colStart = 0; colStart < A.width; colStart += colStride) {
+			int colOffset = threadIdx.x;
+			int col = colStart + colOffset;
+			__shared__ Color tmp[threadsPerBlock];
+
+			// do the multiplication
+			if (col < A.width) {
+				tmp[colOffset] = A.getElement(row, col) * x[col];
+			}
+			__syncthreads();
+
+			// sum across tmp fast
+			for (int n = 2; n <= colStride; n *= 2) {
+				if (colOffset < colStride / n) {
+					tmp[colOffset] += tmp[colOffset + n / 2];
+				}
+				__syncthreads();
+			}
+
+			if (threadIdx.x == 0) {
+				y[row] += tmp[0];
+			}
 		}
 
-		y[row] -= b[row];
+		__syncthreads();
+		if (threadIdx.x == 0) {
+			y[row] -= b[row];
+		}
+		__syncthreads();
 	}
 }
 
 __global__
 void computeGradientPart2(const Matrix<Color> A, const Color *y, double *grad) {
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	int stride = blockDim.x * gridDim.x;
-
-	for (int col = idx; col < A.width; col += stride) {
-		grad[col] = 0;
-
-		for (int i = 0; i < A.height; i++) {
-			Color c = A.getElement(i, col);
-			grad[col] += 2 * y[i] * c;
-
-			/*
-			const int n = 2;
-			double r=1,g=1,b=1;
-			for (int j = 0; j < n-1; j++) {
-				r *= y[i].red;
-				g *= y[i].green;
-				b *= y[i].red;
-			}
-			Color yPowN {r, g, b};
-			grad[col] += n * yPowN * c;
-			*/
-
+	int col = blockIdx.x;
+	int colStride = gridDim.x;
+	for (; col < A.width; col += colStride) {
+		if (threadIdx.x == 0) {
+			grad[col] = 0;
 		}
+		__syncthreads();
+
+		int rowStride = blockDim.x;
+		for (int rowStart = 0; rowStart < A.height; rowStart += rowStride) {
+			int rowOffset = threadIdx.x;
+			int row = rowStart + rowOffset;
+			__shared__ double tmp[threadsPerBlock];
+
+			// do the multiplication
+			if (row < A.height) {
+				tmp[rowOffset] = y[row] * A.getElement(row, col);
+			}
+			__syncthreads();
+
+
+			// sum across tmp fast
+			for (int n = 2; n <= rowStride; n *= 2) {
+				if (rowOffset < rowStride / n) {
+					tmp[rowOffset] += tmp[rowOffset + n / 2];
+				}
+				__syncthreads();
+			}
+
+			__syncthreads();
+			if (threadIdx.x == 0) {
+				grad[col] += tmp[0];
+			}
+			__syncthreads();
+		}
+
+		__syncthreads();
+		if (threadIdx.x == 0) {
+			grad[col] *= 2;
+		}
+		__syncthreads();
 	}
 }
 
@@ -338,20 +383,20 @@ void makeStringArt(const StringArtParams& params) {
 	Color *y;
 	cudaAssert( cudaMallocManaged((void**)&y, A.height * sizeof(Color)) );
 
-	cudaDeviceProp deviceProp;
-	cudaGetDeviceProperties(&deviceProp, 0); // 0-th device
-	//cout << "max threads per multiprocessor: " << deviceProp.maxThreadsPerMultiProcessor << endl;
-	//cout << "mutiprocessor count: " << deviceProp.multiProcessorCount << endl;
-
 	// gradient vector
 	double *grad;
 	cudaAssert( cudaMallocManaged((void**)&grad, A.width * sizeof(double)) );
 
+	cudaDeviceProp deviceProp;
+	cudaGetDeviceProperties(&deviceProp, 0); // 0-th device
+	cout << "max threads per multiprocessor: " << deviceProp.maxThreadsPerMultiProcessor << endl;
+	cout << "max threads per block: " << deviceProp.maxThreadsPerBlock << endl;
+	cout << "mutiprocessor count: " << deviceProp.multiProcessorCount << endl;
+
 	const double scalingFactor = 1.0/50;
-	const int threadsPerBlock = 256;
 	const int maxNumBlocks = deviceProp.maxThreadsPerMultiProcessor / threadsPerBlock * deviceProp.multiProcessorCount;
-	const int numBlocksPart1 = min(maxNumBlocks, (A.height + threadsPerBlock - 1) / threadsPerBlock);
-	const int numBlocksPart2 = min(maxNumBlocks, (A.width + threadsPerBlock - 1) / threadsPerBlock);
+	const int numBlocksPart1 = min(maxNumBlocks, A.height);
+	const int numBlocksPart2 = min(maxNumBlocks, A.width);
 	cout << "numBlocksPart1: " << numBlocksPart1 << endl;
 	cout << "numBlocksPart2: " << numBlocksPart2 << endl;
 	cout << "maxNumBlocks: " << maxNumBlocks << endl;
@@ -360,6 +405,9 @@ void makeStringArt(const StringArtParams& params) {
 		computeGradientPart1<<<numBlocksPart1, threadsPerBlock>>>(A, x, b, y, params.stringColor);
 		cudaAssert( cudaPeekAtLastError() );
 		cudaAssert( cudaDeviceSynchronize() );
+
+		//cout << "y" << endl;
+		//for (int i = 0; i < A.height; i+=50) cout << i << ": " << y[i] << endl;
 
 		computeGradientPart2<<<numBlocksPart2, threadsPerBlock>>>(A, y, grad);
 		cudaAssert( cudaPeekAtLastError() );
@@ -391,16 +439,12 @@ void makeStringArt(const StringArtParams& params) {
 		cout << "done " << iter+1 << endl;
 	}
 
+	/*
 	int cntz=0;
 	for (int i = 0; i < A.width; i++) if (x[i] <= 0) cntz++;
 	cout << "cntz: " << cntz << endl;
-
 	cout << "x" << endl;
-	for (int i = 0; i < A.width; i++) cout << i << ": " << x[i] << endl;
-
-	/*
-	cout << "x" << endl;
-	for (int i = 0; i < A.width; i++) cout << i << ": " << x[i] << endl;
+	for (int i = 0; i < A.width; i+=200) cout << i << ": " << x[i] << endl;
 	cout << "y" << endl;
 	for (int i = 0; i < A.height; i++) cout << i << ": " << y[i] << endl;
 	cout << "gradient" << endl;
@@ -434,7 +478,7 @@ void makeStringArt(const StringArtParams& params) {
 		for (int i = 0; i < numLines && i < v.size(); i++) {
 			int startPeg, endPeg;
 			tie(startPeg, endPeg) = v[i].second;
-			cout << startPeg << " " << endPeg << endl;
+			//cout << startPeg << " " << endPeg << endl;
 			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
 			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
 			drawLine(tmp, startPos, endPos, params);
