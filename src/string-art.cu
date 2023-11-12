@@ -127,7 +127,7 @@ void drawLine(Image &img, Point p, Point q, const StringArtParams &params, array
 				bits[1].update(x, y, params.stringColor.green - orig.green);
 				bits[2].update(x, y, params.stringColor.blue - orig.blue);
 			}
-			//img.setPixelColor(x, y, params.stringColor);
+			img.setPixelColor(x, y, params.stringColor);
 		}
 
 	} else {
