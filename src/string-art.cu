@@ -16,6 +16,7 @@
 #include "color.h"
 #include "matrix.h"
 #include "stopwatch.h"
+#include "debug-utils.h"
 using namespace std;
 
 typedef unsigned long long ull;
@@ -107,7 +108,7 @@ Point getPegCoords(int n, int N, const Image &img) {
 	return planeToImageCoords(x, y, img);
 }
 
-void drawLine(Image &img, Point p, Point q, const StringArtParams &params) {
+void drawLine(Image &img, Point p, Point q, const Color &stringColor) {
 	bool leftToRight = abs(p.x - q.x) > abs(p.y - q.y);
 	if (leftToRight) {
 		Point start = (p.x < q.x) ? p : q;
@@ -119,7 +120,7 @@ void drawLine(Image &img, Point p, Point q, const StringArtParams &params) {
 		// draw the line to the canvas
 		for (int x = start.x; x <= end.x; x++) {
 			int y = round(m * (x - start.x) + start.y);
-			img.setPixelColor(x, y, params.stringColor);
+			img.setPixelColor(x, y, stringColor);
 		}
 
 	} else {
@@ -133,7 +134,7 @@ void drawLine(Image &img, Point p, Point q, const StringArtParams &params) {
 		// draw the line to the canvas
 		for (int y = start.y; y <= end.y; y++) {
 			int x = round(mInv * (y - start.y) + start.x);
-			img.setPixelColor(x, y, params.stringColor);
+			img.setPixelColor(x, y, stringColor);
 		}
 	}
 }
@@ -149,7 +150,8 @@ void generateMatrixA(Matrix<Color> &A, const Image &canvas, const StringArtParam
 			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
 			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
 
-			drawLine(tmp, startPos, endPos, params);
+			//drawLine(tmp, startPos, endPos, params);
+			drawLine(tmp, startPos, endPos, params.stringColor);
 
 			if (endPeg == startPeg + 50) {
 				//tmp.display();
@@ -171,7 +173,7 @@ void generateMatrixA(Matrix<Color> &A, const Image &canvas, const StringArtParam
 					}
 					int row = y * IMAGE_RES + x;
 					const int area = (bottom - top + 1) * (right - left + 1);
-					Color c = totalColor / area;
+					Color c = totalColor / (double)area;
 
 					// invert the color (assumed grayscale)
 					// this is needed for the matrix approach to make sense
@@ -185,97 +187,19 @@ void generateMatrixA(Matrix<Color> &A, const Image &canvas, const StringArtParam
 	}
 }
 
-const int threadsPerBlock = 768;
-
+/*
 __global__
-void computeGradientPart1(const Matrix<Color> A, const double *x, const Color *b, Color *y, const Color STRING_COLOR) {
-	int row = blockIdx.x;
-	int rowStride = gridDim.x;
-	for (; row < A.height; row += rowStride) {
-		if (threadIdx.x == 0) {
-			y[row] = Color{0};
-		}
-		__syncthreads();
-
-		// consider groups of blockDim.x threads
-		int colStride = blockDim.x;
-		for (int colStart = 0; colStart < A.width; colStart += colStride) {
-			int colOffset = threadIdx.x;
-			int col = colStart + colOffset;
-			__shared__ Color tmp[threadsPerBlock];
-
-			// do the multiplication
-			if (col < A.width) {
-				tmp[colOffset] = A.getElement(row, col) * x[col];
-			}
-			__syncthreads();
-
-			// sum across tmp fast
-			for (int n = 2; n <= colStride; n *= 2) {
-				if (colOffset < colStride / n) {
-					tmp[colOffset] += tmp[colOffset + n / 2];
-				}
-				__syncthreads();
-			}
-
-			if (threadIdx.x == 0) {
-				y[row] += tmp[0];
-			}
-
-			__syncthreads();
-		}
-
-		if (threadIdx.x == 0) {
-			y[row] -= b[row];
-		}
-		__syncthreads();
-	}
+void computeGradientPart1(const Matrix<Color> A, const double *x, const Color *b, Color *y) {
+	multiplyMatrixVector(A, x, y);
+	subtractVectors(y, b, A.height, y);
 }
 
 __global__
 void computeGradientPart2(const Matrix<Color> At, const Color *y, double *grad) {
-	int row = blockIdx.x;
-	int rowStride = gridDim.x;
-	for (; row < At.height; row += rowStride) {
-		if (threadIdx.x == 0) {
-			grad[row] = 0;
-		}
-		__syncthreads();
-
-		int colStride = blockDim.x;
-		for (int colStart = 0; colStart < At.width; colStart += colStride) {
-			int colOffset = threadIdx.x;
-			int col = colStart + colOffset;
-			__shared__ double tmp[threadsPerBlock];
-
-			// do the multiplication
-			if (col < At.width) {
-				tmp[colOffset] = y[col] * At.getElement(row, col);
-			}
-			__syncthreads();
-
-
-			// sum across tmp fast
-			for (int n = 2; n <= colStride; n *= 2) {
-				if (colOffset < colStride / n) {
-					tmp[colOffset] += tmp[colOffset + n / 2];
-				}
-				__syncthreads();
-			}
-
-			if (threadIdx.x == 0) {
-				grad[row] += tmp[0];
-			}
-
-			__syncthreads();
-		}
-
-		if (threadIdx.x == 0) {
-			grad[row] *= 2;
-		}
-		__syncthreads();
-	}
+	multiplyMatrixVector(At, y, grad);
+	scaleVector(grad, At.height, 2.0, grad);
 }
+*/
 
 void makeStringArt(const StringArtParams& params) {
 	params.validate();
@@ -293,8 +217,7 @@ void makeStringArt(const StringArtParams& params) {
 		target.write("tmp/grayscale.png");
 	}
 
-	const unsigned NUM_PEGS = params.numPegs;
-	const unsigned NUM_PAIRS = (NUM_PEGS * (NUM_PEGS - 1)) / 2;
+	const unsigned NUM_PAIRS = (params.numPegs * (params.numPegs - 1)) / 2;
 	const unsigned IMAGE_RES = (int)ceil((double)target.getWidth() / params.rectSize); // assume square image
 	const unsigned NUM_PIXELS = IMAGE_RES * IMAGE_RES;
 
@@ -360,6 +283,17 @@ void makeStringArt(const StringArtParams& params) {
 		endStopwatch();
 	}
 
+	cout << "A:" << endl;
+	for (int i = 0; i < A.height; i++) {
+		for (int j = 0; j < A.width; j++) {
+			Color c = A.getElement(i, j);
+			if (!(c.red == c.green && c.green == c.blue)) {
+				cout << i << ": " << c << endl;
+			}
+		}
+	}
+
+
 	startStopwatch("making A transpose");
 	Color *Atdata;
 	cudaAssert( cudaMallocManaged((void**)&Atdata, SIZE) );
@@ -375,7 +309,7 @@ void makeStringArt(const StringArtParams& params) {
 	double *x;
 	cudaAssert( cudaMallocManaged((void**)&x, A.width * sizeof(double)) );
 	for (int i = 0; i < A.width; i++) {
-		x[i] = 0;
+		x[i] = 0.5;
 	}
 
 	// target image vector
@@ -396,11 +330,20 @@ void makeStringArt(const StringArtParams& params) {
 			}
 			const int area = (bottom - top + 1) * (right - left + 1);
 			Color c = totalColor / area;
+
+
 			// invert colors
 			c = Color{1} - c;
 			b[row * IMAGE_RES + col] = c;
 		}
 	}
+
+	// debugging
+	vector<Color> bImgData;
+	for (int i = 0; i < A.height; i++)
+		bImgData.emplace_back(Color{1} - b[i]);
+	Image bImg {bImgData.data(), IMAGE_RES, IMAGE_RES};
+	bImg.write("tmp/target.png");
 
 	// intermediate vector for gradient calculation
 	Color *y;
@@ -412,30 +355,141 @@ void makeStringArt(const StringArtParams& params) {
 
 	cudaDeviceProp deviceProp;
 	cudaGetDeviceProperties(&deviceProp, 0); // 0-th device
-	cout << "max threads per multiprocessor: " << deviceProp.maxThreadsPerMultiProcessor << endl;
-	cout << "max threads per block: " << deviceProp.maxThreadsPerBlock << endl;
-	cout << "mutiprocessor count: " << deviceProp.multiProcessorCount << endl;
+	//cout << "max threads per multiprocessor: " << deviceProp.maxThreadsPerMultiProcessor << endl;
+	//cout << "max threads per block: " << deviceProp.maxThreadsPerBlock << endl;
+	//cout << "mutiprocessor count: " << deviceProp.multiProcessorCount << endl;
 
 	const double scalingFactor = 1.0/50;
-	const int maxNumBlocks = deviceProp.maxThreadsPerMultiProcessor / threadsPerBlock * deviceProp.multiProcessorCount;
+	const int maxNumBlocks = deviceProp.maxThreadsPerMultiProcessor / BLOCK_SIZE * deviceProp.multiProcessorCount;
 	const int numBlocksPart1 = min(maxNumBlocks, A.height);
-	const int numBlocksPart2 = min(maxNumBlocks, At.height);
+	const int numBlocksPart2 = min(maxNumBlocks, max(1, A.height / BLOCK_SIZE));
+	const int numBlocksPart3 = min(maxNumBlocks, At.height);
+	const int numBlocksPart4 = min(maxNumBlocks, max(1, At.height / BLOCK_SIZE));
 	cout << "numBlocksPart1: " << numBlocksPart1 << endl;
 	cout << "numBlocksPart2: " << numBlocksPart2 << endl;
+	cout << "numBlocksPart3: " << numBlocksPart3 << endl;
+	cout << "numBlocksPart4: " << numBlocksPart4 << endl;
 	cout << "maxNumBlocks: " << maxNumBlocks << endl;
 
+	if (false)
+	{
+		multiplyMatrixVector<<<numBlocksPart1, BLOCK_SIZE>>>(A, x, y);
+		cudaAssert( cudaPeekAtLastError() );
+		cudaAssert( cudaDeviceSynchronize() );
+
+		subtractVectors<<<numBlocksPart2, BLOCK_SIZE>>>(y, b, A.height, y);
+		cudaAssert( cudaPeekAtLastError() );
+		cudaAssert( cudaDeviceSynchronize() );
+
+		vector<Color> yGood;
+		for (int i = 0; i < A.height; i++) {
+			Color c{0};
+			for (int j = 0; j < A.width; j++) {
+				c += A.getElement(i, j) * x[j];
+			}
+			yGood.emplace_back(c - b[i]);
+		}
+
+		if (yGood.size() != A.height) {
+			cout << "different size" << endl;
+			return;
+		}
+
+		bool same = 1;
+		for (int i = 0; i < A.height; i++) {
+			Color delta = yGood[i] - y[i];
+			delta.red = abs(delta.red);
+			delta.green = abs(delta.green);
+			delta.blue = abs(delta.blue);
+			if (delta.red > 1e-3 || delta.green > 1e-3 || delta.blue > 1e-3) {
+				same = 0;
+				cout << "they differ" << endl;
+				cout << "yGood[" << i << "]: " << yGood[i] << endl;
+				cout << "y[" << i << "]: " << y[i] << endl;
+			}
+		}
+		if (same) cout << "all good" << endl;
+
+		return;
+	}
+
 	for (int iter = 0; iter < params.numIters; iter++) {
-		computeGradientPart1<<<numBlocksPart1, threadsPerBlock>>>(A, x, b, y, params.stringColor);
+		multiplyMatrixVector<<<numBlocksPart1, BLOCK_SIZE>>>(A, x, y);
 		cudaAssert( cudaPeekAtLastError() );
 		cudaAssert( cudaDeviceSynchronize() );
 
-		//cout << "y" << endl;
-		//for (int i = 0; i < A.height; i+=50) cout << i << ": " << y[i] << endl;
-
-		computeGradientPart2<<<numBlocksPart2, threadsPerBlock>>>(At, y, grad);
+		subtractVectors<<<numBlocksPart2, BLOCK_SIZE>>>(y, b, A.height, y);
 		cudaAssert( cudaPeekAtLastError() );
 		cudaAssert( cudaDeviceSynchronize() );
 
+		multiplyMatrixVector<<<numBlocksPart3, BLOCK_SIZE>>>(At, y, grad);
+		cudaAssert( cudaPeekAtLastError() );
+		cudaAssert( cudaDeviceSynchronize() );
+
+		scaleVector<<<numBlocksPart4, BLOCK_SIZE>>>(grad, At.height, 2.0, grad);
+		cudaAssert( cudaPeekAtLastError() );
+		cudaAssert( cudaDeviceSynchronize() );
+
+		//double mag = calcMagnitude(y, A.height);
+		//cout << "mag: " << mag << endl;
+
+		if (iter == 0) {
+			cout << "initial:" << endl;
+			// debugging
+			vector<Color> yImgData;
+			for (int i = 0; i < A.height; i++) {
+				//yImgData.emplace_back(Color{1} - (y[i] + b[i]));
+				Color c = Color{1} - (y[i] + b[i]);
+				c.red = clamp(c.red, 0., 1.);
+				c.green = clamp(c.green, 0., 1.);
+				c.blue = clamp(c.blue, 0., 1.);
+				if (!(c.red == c.green && c.green == c.blue)) {
+					cout << i << ": " << c << endl;
+				}
+				yImgData.emplace_back(c);
+			}
+			Image yImg {yImgData.data(), IMAGE_RES, IMAGE_RES};
+			yImg.write("tmp/initial.png");
+
+			Image initial{canvas};
+			for (int startPeg = 0, idx = 0; startPeg < params.numPegs; startPeg++) {
+				for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
+					Point startPos = getPegCoords(startPeg, params.numPegs, initial);
+					Point endPos = getPegCoords(endPeg, params.numPegs, initial);
+					drawLine(initial, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
+				}
+			}
+
+			// downsample ideal
+			Image idealInitial {WHITE, IMAGE_RES, IMAGE_RES};
+			for (int row = 0; row < IMAGE_RES; row++) {
+				for (int col = 0; col < IMAGE_RES; col++) {
+					int top = row * params.rectSize;
+					int left = col * params.rectSize;
+					int right = min(left + params.rectSize - 1, WIDTH - 1);
+					int bottom = min(top + params.rectSize - 1, HEIGHT - 1);
+					Color totalColor {0};
+					for (int yi = top; yi <= bottom; yi++) {
+						for (int xi = left; xi <= right; xi++) {
+							Color c = initial.getPixelColor(xi, yi);
+							totalColor += c;
+						}
+					}
+					const int area = (bottom - top + 1) * (right - left + 1);
+					Color c = totalColor / area;
+
+
+					// invert colors
+					//c = Color{1} - c;
+					//b[row * IMAGE_RES + col] = c;
+					idealInitial.setPixelColor(col, row, c);
+				}
+			}
+			idealInitial.write("tmp/ideal-initial.png");
+		
+		}
+
+		/*
 		cout << "gradient" << endl;
 		//for (int i = 0; i < A.width; i+=200) cout << i << ": " << grad[i] << endl;
 		int cntNeg = 0;
@@ -453,14 +507,31 @@ void makeStringArt(const StringArtParams& params) {
 		cout << "minGrad: " << minGrad << endl;
 		cout << "mag: " << mag << endl;
 
+		*/
+
 		for (int i = 0; i < A.width; i++) {
 			x[i] -= scalingFactor * grad[i];
 			if (x[i] < 0) x[i] = 0;
 			if (x[i] > 1) x[i] = 1;
 		}
-
-		cout << "done " << iter+1 << endl;
 	}
+
+	// debugging
+	cout << "product:" << endl;
+	vector<Color> yImgData;
+	for (int i = 0; i < A.height; i++) {
+			//yImgData.emplace_back(Color{1} - (y[i] + b[i]));
+			Color c = Color{1} - (y[i] + b[i]);
+			c.red = clamp(c.red, 0., 1.);
+			c.green = clamp(c.green, 0., 1.);
+			c.blue = clamp(c.blue, 0., 1.);
+			if (!(c.red == c.green && c.green == c.blue)) {
+				cout << i << ": " << c << endl;
+			}
+			yImgData.emplace_back(c);
+	}
+	Image yImg {yImgData.data(), IMAGE_RES, IMAGE_RES};
+	yImg.write("tmp/product.png");
 
 	/*
 	int cntz=0;
@@ -480,6 +551,18 @@ void makeStringArt(const StringArtParams& params) {
 	cudaFree(y);
 	cudaFree(grad);
 
+
+	/*
+	for (int startPeg = 0, idx = 0; startPeg < params.numPegs; startPeg++) {
+		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
+			Point startPos = getPegCoords(startPeg, params.numPegs, canvas);
+			Point endPos = getPegCoords(endPeg, params.numPegs, canvas);
+			drawLine(canvas, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
+		}
+	}
+	canvas.write(params.outputImageFilename);
+	*/
+		
 	while (true) {
 		cout << "enter num lines: ";
 		int numLines = 0;
@@ -501,10 +584,9 @@ void makeStringArt(const StringArtParams& params) {
 		for (int i = 0; i < numLines && i < v.size(); i++) {
 			int startPeg, endPeg;
 			tie(startPeg, endPeg) = v[i].second;
-			//cout << startPeg << " " << endPeg << endl;
 			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
 			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
-			drawLine(tmp, startPos, endPos, params);
+			drawLine(tmp, startPos, endPos, params.stringColor);
 		}
 		cout << " done" << endl;
 		
@@ -514,28 +596,5 @@ void makeStringArt(const StringArtParams& params) {
 	}
 
 	cudaFree(x);
-
-	/*
-	if (params.grayscaleInput) {
-		img.convertToGrayscale();
-	}
-	img.write("tmp/grayscale.png");
-
-	if (params.rgbOutput) {
-		// do three passes, one for each color
-		StringArtParams newParams {params};
-		newParams.stringColor = Color{1, 0, 0};
-		draw(img, output, newParams);
-		newParams.stringColor = Color{0, 1, 0};
-		draw(img, output, newParams);
-		newParams.stringColor = Color{0, 0, 1};
-		draw(img, output, newParams);
-	} else {
-		// single pass with specified color
-		draw(img, output, params);
-	}
-
-	output.write(params.outputImageFilename);
-	*/
 }
 

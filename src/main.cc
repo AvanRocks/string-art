@@ -80,7 +80,7 @@ vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, st
 	{{"--output", "-o"},						setOutputFilename,		"set the output image filename"},
 	{{"--cache-file", "-c"},				setCacheFilename,		"set the matrix cache filename"},
 	{{"--grayscale-input", "-g"},		setGrayscaleInput,		"convert the input image to grayscale"},
-	{{"--rgb-output", "-r"},				setRGBOutput,					"use red, green, and blue strings to generate a color image"},
+	{{"--rgb-output", "-rgb"},				setRGBOutput,					"use red, green, and blue strings to generate a color image"},
 	{{"--string-color", "-s"},			setStringColor,				"set the color of the lines used to draw the image"},
 	{{"--background-color", "-b"},	setBackgroundColor,		"set the background color"},
 	{{"--num-pegs", "-p"},					setNumPegs,						"set the number of pegs around the circle"},
@@ -161,18 +161,6 @@ int main(int argc, char **argv) {
 		usage(argv[0]);
 		exit(1);
 	}
-
-	/*
-	//params.inputImageFilename = "images/new-face-1000.jpg";
-	params.inputImageFilename = "images/test-1000.png";
-	params.stringColor = Color{0.1};
-	params.backgroundColor = Color{0.9};
-	params.numPegs = 400;
-	params.numIters = 20000;
-	params.rectSize = 10;
-	//params.thicknessFunc = flatThickness;
-	//params.costFunc = absDistanceCost;
-	*/
 
 	makeStringArt(params);
 

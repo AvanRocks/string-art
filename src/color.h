@@ -11,7 +11,6 @@ struct Color {
 	Color(double, double, double);
 	__host__ __device__
 	Color(double);
-	__host__ __device__
 	Color() = default; // needed for some CUDA warnings to go away
 	// interpolate between c1 and c2. t = 0 return c1, t = 1 returns c2.
 	static Color interp(const Color &c1, const Color &c2, double t);
