@@ -5,11 +5,14 @@ const int BLOCK_SIZE = 768;
 template<typename T1, typename T2>
 __global__
 void multiplyMatrixVector(const Matrix<Color> A, const T1 *v, T2 *res) {
+	__shared__ T2 tmp[BLOCK_SIZE];
 	int row = blockIdx.x;
 	int rowStride = gridDim.x;
 	for (; row < A.height; row += rowStride) {
-		// consider groups of blockDim.x threads
-		__shared__ T2 tmp[BLOCK_SIZE];
+		// each block does one dot product
+		if (threadIdx.x == 0) {
+			res[row] = T2(0);
+		}
 		int colStride = blockDim.x;
 		for (int colStart = 0; colStart < A.width; colStart += colStride) {
 			int colOffset = threadIdx.x;
@@ -24,15 +27,17 @@ void multiplyMatrixVector(const Matrix<Color> A, const T1 *v, T2 *res) {
 			__syncthreads();
 
 			// sum across tmp fast
-			for (int n = 2; n <= BLOCK_SIZE; n *= 2) {
+			for (int n = 2; n / 2 < BLOCK_SIZE; n *= 2) {
 				if (colOffset % n == 0) {
-					tmp[colOffset] += tmp[colOffset + n / 2];
+					if (colOffset + n / 2 < BLOCK_SIZE) {
+						tmp[colOffset] += tmp[colOffset + n / 2];
+					}
 				}
 				__syncthreads();
 			}
 
 			if (threadIdx.x == 0) {
-				res[row] = tmp[0];
+				res[row] += tmp[0];
 			}
 
 			__syncthreads();

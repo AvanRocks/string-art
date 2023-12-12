@@ -187,19 +187,24 @@ void generateMatrixA(Matrix<Color> &A, const Image &canvas, const StringArtParam
 	}
 }
 
-/*
-__global__
-void computeGradientPart1(const Matrix<Color> A, const double *x, const Color *b, Color *y) {
-	multiplyMatrixVector(A, x, y);
-	subtractVectors(y, b, A.height, y);
-}
+void saveToCache(const Matrix<Color> &A, const StringArtParams &params, const Image &target) {
+	ofstream newCache(params.matrixCacheFilename, ios::binary);
 
-__global__
-void computeGradientPart2(const Matrix<Color> At, const Color *y, double *grad) {
-	multiplyMatrixVector(At, y, grad);
-	scaleVector(grad, At.height, 2.0, grad);
+	if (newCache.fail()) {
+		throw runtime_error("Failed to write to matrix cache file.");
+	}
+
+	const int WIDTH = target.getWidth();
+	const int HEIGHT = target.getHeight();
+
+	startStopwatch("writing to cache");
+	newCache.write(reinterpret_cast<const char*>(&params.numPegs), sizeof(params.numPegs));
+	newCache.write(reinterpret_cast<const char*>(&WIDTH), sizeof(WIDTH));
+	newCache.write(reinterpret_cast<const char*>(&HEIGHT), sizeof(HEIGHT));
+	newCache.write(reinterpret_cast<const char*>(&params.rectSize), sizeof(params.rectSize));
+	newCache.write(reinterpret_cast<const char*>(A.elements), A.width * A.height * sizeof(Color));
+	endStopwatch();
 }
-*/
 
 void makeStringArt(const StringArtParams& params) {
 	params.validate();
@@ -240,29 +245,12 @@ void makeStringArt(const StringArtParams& params) {
 
 	if (cache.fail()) {
 		startStopwatch("generating matrix A");
-
 		generateMatrixA(A, canvas, params);
-
 		endStopwatch();
 
-		ofstream newCache(params.matrixCacheFilename, ios::binary);
-
-		if (newCache.fail()) {
-			throw runtime_error("Failed to write to matrix cache file.");
-		}
-
-		startStopwatch("writing to cache");
-		newCache.write(reinterpret_cast<const char*>(&params.numPegs), sizeof(params.numPegs));
-		newCache.write(reinterpret_cast<const char*>(&WIDTH), sizeof(WIDTH));
-		newCache.write(reinterpret_cast<const char*>(&HEIGHT), sizeof(HEIGHT));
-		newCache.write(reinterpret_cast<const char*>(&params.rectSize), sizeof(params.rectSize));
-		newCache.write(reinterpret_cast<const char*>(Adata), SIZE);
-		endStopwatch();
-
+		saveToCache(A, params, target);
 	} else {
 		// read from cache
-
-		startStopwatch("reading cache")
 
 		int cacheNumPegs, cacheWidth, cacheHeight, cacheRectSize;
 		cache.read(reinterpret_cast<char*>(&cacheNumPegs), sizeof(cacheNumPegs));
@@ -277,13 +265,15 @@ void makeStringArt(const StringArtParams& params) {
 		{
 			cache.read(reinterpret_cast<char*>(Adata), SIZE);
 		} else {
-			throw ("cache does not match current parameters"); 
+			cout << "cache does not match current parameters. creating new cache" << endl;
+			startStopwatch("generating matrix A");
+			generateMatrixA(A, canvas, params);
+			endStopwatch();
+			saveToCache(A, params, target);
 		}
-
-		endStopwatch();
 	}
 
-	cout << "A:" << endl;
+	cout << "bad elements of A:" << endl;
 	for (int i = 0; i < A.height; i++) {
 		for (int j = 0; j < A.width; j++) {
 			Color c = A.getElement(i, j);
@@ -359,7 +349,8 @@ void makeStringArt(const StringArtParams& params) {
 	//cout << "max threads per block: " << deviceProp.maxThreadsPerBlock << endl;
 	//cout << "mutiprocessor count: " << deviceProp.multiProcessorCount << endl;
 
-	const double scalingFactor = 1.0/50;
+	const double initialLearningRate = 1.0/100;
+	double learningRate = initialLearningRate;
 	const int maxNumBlocks = deviceProp.maxThreadsPerMultiProcessor / BLOCK_SIZE * deviceProp.multiProcessorCount;
 	const int numBlocksPart1 = min(maxNumBlocks, A.height);
 	const int numBlocksPart2 = min(maxNumBlocks, max(1, A.height / BLOCK_SIZE));
@@ -413,32 +404,63 @@ void makeStringArt(const StringArtParams& params) {
 		return;
 	}
 
+	vector<double> prevX(A.width);
+	double cost = numeric_limits<double>::infinity();
+	double prevCost = numeric_limits<double>::infinity();
 	for (int iter = 0; iter < params.numIters; iter++) {
 		multiplyMatrixVector<<<numBlocksPart1, BLOCK_SIZE>>>(A, x, y);
 		cudaAssert( cudaPeekAtLastError() );
 		cudaAssert( cudaDeviceSynchronize() );
 
+		/*
 		subtractVectors<<<numBlocksPart2, BLOCK_SIZE>>>(y, b, A.height, y);
 		cudaAssert( cudaPeekAtLastError() );
 		cudaAssert( cudaDeviceSynchronize() );
+		*/
+
+		for (int i = 0; i < A.height; i++) {
+			y[i] -= b[i];
+		}
+
+		cost = 0;
+		for (int i = 0; i < A.height; i++) {
+			cost += y[i] * y[i];
+		}
+		cost /= A.height;
+		if (iter % 10 == 0)
+			cout << "cost: " << cost << endl;
+
+		if (cost > prevCost) {
+			cout << "reverting last step" << endl;
+			// revert last step
+			for (int i = 0; i < A.width; i++) {
+				x[i] = prevX[i];
+			}
+			prevCost = numeric_limits<double>::infinity();
+			// decrease learning rate
+			learningRate *= 0.7;
+			continue;
+		}
 
 		multiplyMatrixVector<<<numBlocksPart3, BLOCK_SIZE>>>(At, y, grad);
 		cudaAssert( cudaPeekAtLastError() );
 		cudaAssert( cudaDeviceSynchronize() );
 
+		/*
 		scaleVector<<<numBlocksPart4, BLOCK_SIZE>>>(grad, At.height, 2.0, grad);
 		cudaAssert( cudaPeekAtLastError() );
 		cudaAssert( cudaDeviceSynchronize() );
+		*/
 
-		//double mag = calcMagnitude(y, A.height);
-		//cout << "mag: " << mag << endl;
+		for (int i = 0; i < At.height; i++) {
+			grad[i] *= 2.0;
+		}
 
 		if (iter == 0) {
 			cout << "initial:" << endl;
 			// debugging
 			vector<Color> yImgData;
 			for (int i = 0; i < A.height; i++) {
-				//yImgData.emplace_back(Color{1} - (y[i] + b[i]));
 				Color c = Color{1} - (y[i] + b[i]);
 				c.red = clamp(c.red, 0., 1.);
 				c.green = clamp(c.green, 0., 1.);
@@ -456,7 +478,8 @@ void makeStringArt(const StringArtParams& params) {
 				for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
 					Point startPos = getPegCoords(startPeg, params.numPegs, initial);
 					Point endPos = getPegCoords(endPeg, params.numPegs, initial);
-					drawLine(initial, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
+					//drawLine(initial, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
+					drawLine(initial, startPos, endPos, params.stringColor);
 				}
 			}
 
@@ -489,31 +512,28 @@ void makeStringArt(const StringArtParams& params) {
 		
 		}
 
-		/*
-		cout << "gradient" << endl;
-		//for (int i = 0; i < A.width; i+=200) cout << i << ": " << grad[i] << endl;
-		int cntNeg = 0;
-		double maxGrad = INT_MIN, minGrad = INT_MAX;
-		double mag = 0;
-		for (int i = 0; i < A.width; i++) {
-			if (grad[i] < 0) cntNeg++;
-			maxGrad = max(maxGrad, grad[i]);
-			minGrad = min(minGrad, grad[i]);
-			mag += grad[i] * grad[i];
+		if (iter % 10 == 0) {
+			double mag = 0;
+			for (int i = 0; i < A.width; i++) {
+				mag += grad[i] * grad[i];
+			}
+			mag = sqrt(mag) / A.width;
+			cout << "mag: " << mag << endl;
 		}
-		mag = sqrt(mag);
-		cout << "cntNeg: " << cntNeg << endl;
-		cout << "maxGrad: " << maxGrad << endl;
-		cout << "minGrad: " << minGrad << endl;
-		cout << "mag: " << mag << endl;
 
-		*/
+		learningRate *= 1.1;
 
 		for (int i = 0; i < A.width; i++) {
-			x[i] -= scalingFactor * grad[i];
+			x[i] -= learningRate * grad[i];
 			if (x[i] < 0) x[i] = 0;
 			if (x[i] > 1) x[i] = 1;
 		}
+
+		prevCost = cost;
+		for (int i = 0; i < A.width; i++) {
+			prevX[i] = x[i];
+		}
+		//cout << "done " << iter + 1 << endl;
 	}
 
 	// debugging
@@ -552,6 +572,22 @@ void makeStringArt(const StringArtParams& params) {
 	cudaFree(grad);
 
 
+	//cout << "x" << endl;
+	//for (int i = 0; i < A.width; i++) cout << i << ": " << x[i] << endl;
+
+	/*
+	for (int startPeg = 0, idx = 0; startPeg < params.numPegs; startPeg++) {
+		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
+			if (x[idx] > 0.3) {
+				Point startPos = getPegCoords(startPeg, params.numPegs, canvas);
+				Point endPos = getPegCoords(endPeg, params.numPegs, canvas);
+				drawLine(canvas, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
+			}
+		}
+	}
+	canvas.write(params.outputImageFilename);
+	*/
+		
 	/*
 	for (int startPeg = 0, idx = 0; startPeg < params.numPegs; startPeg++) {
 		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
