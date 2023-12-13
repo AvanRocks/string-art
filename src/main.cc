@@ -76,7 +76,7 @@ vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, st
 {
 	{{"--output", "-o"},						setOutputFilename,		"set the output image filename"},
 	{{"--grayscale-input", "-g"},		setGrayscaleInput,		"convert the input image to grayscale"},
-	{{"--rgb-output", "-r"},				setRGBOutput,					"use red, green, and blue strings to generate a color image"},
+	{{"--rgb-output", "-rgb"},				setRGBOutput,					"use red, green, and blue strings to generate a color image"},
 	{{"--string-color", "-s"},			setStringColor,				"set the color of the lines used to draw the image"},
 	{{"--background-color", "-b"},	setBackgroundColor,		"set the background color"},
 	{{"--num-pegs", "-p"},					setNumPegs,						"set the number of pegs around the circle"},
