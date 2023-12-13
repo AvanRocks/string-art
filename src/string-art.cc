@@ -12,10 +12,6 @@
 #include "bit.h"
 using namespace std;
 
-struct Point {
-	int x, y;
-};
-
 void StringArtParams::validate() const {
 	if (this->inputImageFilename.size() == 0) {
 		throw logic_error("Input image filename is empty.");
@@ -59,19 +55,26 @@ double euclideanDistanceCost(const Color& c1, const Color& c2) {
 	return sqrt( pow(dRed, 2) + pow(dGreen, 2) + pow(dBlue, 2) );
 }
 
-// get the coordinates of the nth peg (0-indexed)
-Point getPegCoords(int n, int N, const Image &img) {
-	double theta = 2.0 * numbers::pi * n / N;
-	double x = cos(theta);
-	double y = sin(theta);
+struct Point {
+	int x, y;
+};
 
-	unsigned width = img.getWidth();
-	unsigned height = img.getHeight();
+vector<Point> precomputePegCoords(const int numPegs, const Image &img) {
+	vector<Point> pegCoords;
+	for (int peg = 0; peg < numPegs; peg++) {
+		double theta = 2.0 * numbers::pi * peg / numPegs;
+		double x = cos(theta);
+		double y = sin(theta);
 
-	int imgX = round(((width - 1) / 2.0) * (1 + x));
-	int imgY = round(((height - 1) / 2.0) * (1 - y));
+		unsigned width = img.getWidth();
+		unsigned height = img.getHeight();
 
-	return { imgX, imgY };
+		int imgX = round(((width - 1) / 2.0) * (1 + x));
+		int imgY = round(((height - 1) / 2.0) * (1 - y));
+
+		pegCoords.emplace_back(imgX, imgY);
+	}
+	return pegCoords;
 }
 
 bool useBit = true;
@@ -271,6 +274,8 @@ double calcImprovement(
 // to be able to draw multiple times on the same canvas with different colors.
 // This is why the canvas image is taken as a parameter.
 void draw(const Image& reference, Image& canvas, const StringArtParams& params) {
+	vector<Point> pegCoords {precomputePegCoords(params.numPegs, reference)};
+
 	// make the bits
 	unsigned width = reference.getWidth();
 	unsigned height = reference.getHeight();
@@ -294,7 +299,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 	int countZero = 0;
 	for (int iter = 0; iter < params.numIters; iter++) {
 
-		Point currPegPos = getPegCoords(currPegNum, params.numPegs, canvas);
+		Point currPegPos = pegCoords[currPegNum];
 		double maxImprovement = -numeric_limits<double>::infinity();
 		int bestPegNum = -1;
 
@@ -304,8 +309,9 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 
 			// TODO decide whether to keep this or not
 			if (abs(nextPegNum - prevPegNum) < 0.1 * params.numPegs) continue;
+			if (abs(nextPegNum - currPegNum) < 0.1 * params.numPegs) continue;
 
-			Point nextPegPos = getPegCoords(nextPegNum, params.numPegs, canvas);
+			Point nextPegPos = pegCoords[nextPegNum];
 			double improvement = calcImprovement(reference, referenceBits, canvas, canvasBits, currPegPos, nextPegPos, params);
 			if (improvement > maxImprovement) {
 				#pragma omp atomic write
@@ -321,7 +327,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			canvas.write(params.outputImageFilename);
 		}
 
-		Point bestPegPos = getPegCoords(bestPegNum, params.numPegs, canvas);
+		Point bestPegPos = pegCoords[bestPegNum];
 
 		// draw the line
 		bool leftToRight = abs(currPegPos.x - bestPegPos.x) > abs(currPegPos.y - bestPegPos.y);
