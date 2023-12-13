@@ -303,7 +303,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			if (nextPegNum == prevPegNum || nextPegNum == currPegNum) continue;
 
 			// TODO decide whether to keep this or not
-			if (abs(nextPegNum - prevPegNum) < 10) continue;
+			if (abs(nextPegNum - prevPegNum) < 0.1 * params.numPegs) continue;
 
 			Point nextPegPos = getPegCoords(nextPegNum, params.numPegs, canvas);
 			double improvement = calcImprovement(reference, referenceBits, canvas, canvasBits, currPegPos, nextPegPos, params);
@@ -364,6 +364,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 		prevPegNum = currPegNum;
 		currPegNum = bestPegNum;
 
+		/*
 		if (maxImprovement <= 0) {
 			countZero++;
 			//cout << "max improvement 0" << endl;
@@ -375,6 +376,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			cout << "Stopping early due to " << countZero << " consecutive iterations with no improvement" << endl;
 			break;
 		}
+		*/
 	}
 
 }
