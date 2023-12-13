@@ -87,7 +87,7 @@ vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, st
 	{{"--num-iterations", "-i"},		setNumIters,					"set the number of lines to be drawn"},
 	{{"--rect-size", "-r"},					setRectSize,					"set the resolution, in pixels, to use when calculating the best lines to draw"},
 	{{"--thickness-func", "-t"},		setThicknessFunc,			"set the function that determines the thickness of the string"},
-	{{"--cost-func", "-c"},					setCostFunc,					"set the function that determines the perceived difference between colors"},
+	{{"--cost-func"},					setCostFunc,					"set the function that determines the perceived difference between colors"},
 	{{"--help", "-h"},							usage,								"display this help and exit"}
 };
 
