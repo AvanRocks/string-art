@@ -31,14 +31,6 @@ inline void cudaAssertFunc(cudaError_t code, const char *file, int line, bool ab
    }
 }
 
-struct Point {
-	int x, y;
-};
-
-struct Coords {
-	double x, y;
-};
-
 void StringArtParams::validate() const {
 	if (this->inputImageFilename.size() == 0) {
 		throw logic_error("Input image filename is empty.");
@@ -82,30 +74,27 @@ double euclideanDistanceCost(const Color& c1, const Color& c2) {
 	return sqrt( pow(dRed, 2) + pow(dGreen, 2) + pow(dBlue, 2) );
 }
 
-// plane coords refers to usual coordinates in the cartesian plane (normalized to [-1, 1])
-// image coords means the row and column in the image
-// x and y are [-1, 1] 
-Point planeToImageCoords(double x, double y, const Image &img) {
-	return { (int)round(((img.getWidth() - 1) / 2.0) * (1 + x)),
-					 (int)round(((img.getHeight() - 1) / 2.0) * (1 - y)) };
-}
+struct Point {
+	int x, y;
+};
 
-Coords imageToPlaneCoords(int x, int y, const Image &img) {
-	return { ((double)x + 0.5) *  (2.0 / img.getWidth()) - 1,
-					 ((double)y + 0.5) *  (2.0 / img.getHeight()) - 1 };
+vector<Point> precomputePegCoords(const int numPegs, const Image &img) {
+	vector<Point> pegCoords;
+	for (int peg = 0; peg < numPegs; peg++) {
+		double theta = 2.0 * numbers::pi * peg / numPegs;
+		double x = cos(theta);
+		double y = sin(theta);
 
-}
+		unsigned width = img.getWidth();
+		unsigned height = img.getHeight();
 
-// get the coordinates of the nth peg (0-indexed)
-Point getPegCoords(int n, int N, const Image &img) {
-	double theta = 2.0 * numbers::pi * n / N;
-	double x = cos(theta);
-	double y = sin(theta);
+		// coordinates in the image (row and column)
+		int imgX = round(((width - 1) / 2.0) * (1 + x));
+		int imgY = round(((height - 1) / 2.0) * (1 - y));
 
-	unsigned width = img.getWidth();
-	unsigned height = img.getHeight();
-
-	return planeToImageCoords(x, y, img);
+		pegCoords.push_back({imgX, imgY});
+	}
+	return pegCoords;
 }
 
 void drawLine(Image &img, Point p, Point q, const Color &stringColor) {
@@ -139,7 +128,7 @@ void drawLine(Image &img, Point p, Point q, const Color &stringColor) {
 	}
 }
 
-void generateMatrixA(Matrix<Color> &A, const Image &canvas, const StringArtParams &params) {
+void generateMatrixA(Matrix<Color> &A, const Image &canvas, const vector<Point> pegCoords, const StringArtParams &params) {
 	const unsigned IMAGE_RES = (int)ceil((double)canvas.getWidth() / params.rectSize); // assume square image
 
 	for (int startPeg = 0, col = 0; startPeg < params.numPegs; startPeg++) {
@@ -147,8 +136,8 @@ void generateMatrixA(Matrix<Color> &A, const Image &canvas, const StringArtParam
 		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, col++) {
 			Image tmp {canvas};
 
-			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
-			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
+			Point startPos = pegCoords[startPeg];
+			Point endPos = pegCoords[endPeg];
 
 			//drawLine(tmp, startPos, endPos, params);
 			drawLine(tmp, startPos, endPos, params.stringColor);
@@ -222,6 +211,8 @@ void makeStringArt(const StringArtParams& params) {
 		target.write("tmp/grayscale.png");
 	}
 
+	vector<Point> pegCoords = precomputePegCoords(params.numPegs, target);
+
 	const unsigned NUM_PAIRS = (params.numPegs * (params.numPegs - 1)) / 2;
 	const unsigned IMAGE_RES = (int)ceil((double)target.getWidth() / params.rectSize); // assume square image
 	const unsigned NUM_PIXELS = IMAGE_RES * IMAGE_RES;
@@ -245,7 +236,7 @@ void makeStringArt(const StringArtParams& params) {
 
 	if (cache.fail()) {
 		startStopwatch("generating matrix A");
-		generateMatrixA(A, canvas, params);
+		generateMatrixA(A, canvas, pegCoords, params);
 		endStopwatch();
 
 		saveToCache(A, params, target);
@@ -267,7 +258,7 @@ void makeStringArt(const StringArtParams& params) {
 		} else {
 			cout << "cache does not match current parameters. creating new cache" << endl;
 			startStopwatch("generating matrix A");
-			generateMatrixA(A, canvas, params);
+			generateMatrixA(A, canvas, pegCoords, params);
 			endStopwatch();
 			saveToCache(A, params, target);
 		}
@@ -476,8 +467,8 @@ void makeStringArt(const StringArtParams& params) {
 			Image initial{canvas};
 			for (int startPeg = 0, idx = 0; startPeg < params.numPegs; startPeg++) {
 				for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
-					Point startPos = getPegCoords(startPeg, params.numPegs, initial);
-					Point endPos = getPegCoords(endPeg, params.numPegs, initial);
+					Point startPos = pegCoords[startPeg];
+					Point endPos = pegCoords[endPeg];
 					//drawLine(initial, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
 					drawLine(initial, startPos, endPos, params.stringColor);
 				}
@@ -579,8 +570,8 @@ void makeStringArt(const StringArtParams& params) {
 	for (int startPeg = 0, idx = 0; startPeg < params.numPegs; startPeg++) {
 		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
 			if (x[idx] > 0.3) {
-				Point startPos = getPegCoords(startPeg, params.numPegs, canvas);
-				Point endPos = getPegCoords(endPeg, params.numPegs, canvas);
+				Point startPos = pegCoords[startPeg];
+				Point endPos = pegCoords[endPeg];
 				drawLine(canvas, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
 			}
 		}
@@ -591,8 +582,8 @@ void makeStringArt(const StringArtParams& params) {
 	/*
 	for (int startPeg = 0, idx = 0; startPeg < params.numPegs; startPeg++) {
 		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
-			Point startPos = getPegCoords(startPeg, params.numPegs, canvas);
-			Point endPos = getPegCoords(endPeg, params.numPegs, canvas);
+			Point startPos = pegCoords[startPeg];
+			Point endPos = pegCoords[endPeg];
 			drawLine(canvas, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
 		}
 	}
@@ -620,8 +611,8 @@ void makeStringArt(const StringArtParams& params) {
 		for (int i = 0; i < numLines && i < v.size(); i++) {
 			int startPeg, endPeg;
 			tie(startPeg, endPeg) = v[i].second;
-			Point startPos = getPegCoords(startPeg, params.numPegs, tmp);
-			Point endPos = getPegCoords(endPeg, params.numPegs, tmp);
+			Point startPos = pegCoords[startPeg];
+			Point endPos = pegCoords[endPeg];
 			drawLine(tmp, startPos, endPos, params.stringColor);
 		}
 		cout << " done" << endl;
