@@ -271,28 +271,28 @@ double calcImprovement(
 // to be able to draw multiple times on the same canvas with different colors.
 // This is why the canvas image is taken as a parameter.
 void draw(const Image& reference, Image& canvas, const StringArtParams& params) {
+	// make the bits
+	unsigned width = reference.getWidth();
+	unsigned height = reference.getHeight();
+	array<Bit<double>, 3> referenceBits {{{width, height}, {width, height}, {width, height}}};
+	array<Bit<double>, 3> canvasBits {{{width, height}, {width, height}, {width, height}}};
+	for (unsigned y = 0; y < height; y++) {
+		for (unsigned x = 0; x < width; x++) {
+			Color c = reference.getPixelColor(x, y);
+			referenceBits[0].update(x, y, c.red);
+			referenceBits[1].update(x, y, c.green);
+			referenceBits[2].update(x, y, c.blue);
+			c = canvas.getPixelColor(x, y);
+			canvasBits[0].update(x, y, c.red);
+			canvasBits[1].update(x, y, c.green);
+			canvasBits[2].update(x, y, c.blue);
+		}
+	}
+
 	int currPegNum = 0, prevPegNum = -1;
 	// count the number of consecutive iterations with zero max improvement
 	int countZero = 0;
 	for (int iter = 0; iter < params.numIters; iter++) {
-
-		// make the bits
-		unsigned width = reference.getWidth();
-		unsigned height = reference.getHeight();
-		array<Bit<double>, 3> referenceBits {{{width, height}, {width, height}, {width, height}}};
-		array<Bit<double>, 3> canvasBits {{{width, height}, {width, height}, {width, height}}};
-		for (unsigned y = 0; y < height; y++) {
-			for (unsigned x = 0; x < width; x++) {
-				Color c = reference.getPixelColor(x, y);
-				referenceBits[0].update(x, y, c.red);
-				referenceBits[1].update(x, y, c.green);
-				referenceBits[2].update(x, y, c.blue);
-				c = canvas.getPixelColor(x, y);
-				canvasBits[0].update(x, y, c.red);
-				canvasBits[1].update(x, y, c.green);
-				canvasBits[2].update(x, y, c.blue);
-			}
-		}
 
 		Point currPegPos = getPegCoords(currPegNum, params.numPegs, canvas);
 		double maxImprovement = -numeric_limits<double>::infinity();
@@ -337,9 +337,11 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 				int y = round(m * (x - start.x) + start.y);
 				Color orig = canvas.getPixelColor(x, y);
 				canvas.setPixelColor(x, y, params.stringColor);
-				canvasBits[0].update(x, y, params.stringColor.red - orig.red);
-				canvasBits[1].update(x, y, params.stringColor.green - orig.green);
-				canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
+				if (useBit) {
+					canvasBits[0].update(x, y, params.stringColor.red - orig.red);
+					canvasBits[1].update(x, y, params.stringColor.green - orig.green);
+					canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
+				}
 			}
 
 		} else {
@@ -355,9 +357,11 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 				int x = round(mInv * (y - start.y) + start.x);
 				Color orig = canvas.getPixelColor(x, y);
 				canvas.setPixelColor(x, y, params.stringColor);
-				canvasBits[0].update(x, y, params.stringColor.red - orig.red);
-				canvasBits[1].update(x, y, params.stringColor.green - orig.green);
-				canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
+				if (useBit) {
+					canvasBits[0].update(x, y, params.stringColor.red - orig.red);
+					canvasBits[1].update(x, y, params.stringColor.green - orig.green);
+					canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
+				}
 			}
 		}
 
