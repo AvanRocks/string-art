@@ -368,6 +368,10 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			}
 		}
 
+		if (bestPegNum == -1) {
+			throw runtime_error("no pegs available to draw to");
+		}
+
 		if (iter % 1000 == 0) {
 			cout << "done " << iter << endl;
 			cout << "max improvement " << maxImprovement << endl;
@@ -428,7 +432,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 
 		currPegNum = bestPegNum;
 		lastPegNums.push_back(currPegNum);
-		if (lastPegNums.size() > 100) {
+		if (lastPegNums.size() > 20) {
 			lastPegNums.pop_front();
 		}
 
@@ -458,6 +462,7 @@ void makeStringArt(const StringArtParams& params) {
 	img.write("tmp/grayscale.png");
 
 	if (params.rgbOutput) {
+		// TODO
 		// do three passes, one for each color
 		StringArtParams newParams {params};
 		/*
