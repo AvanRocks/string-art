@@ -5,8 +5,14 @@
 
 #include "cuda-fix.h"
 
+using Color = double;
+extern Color WHITE;
+extern Color BLACK;
+Color interp(const Color &c1, const Color &c2, double t);
+/*
 struct Color {
 	double red, green, blue;
+
 	__host__ __device__
 	Color(double, double, double);
 	__host__ __device__
@@ -42,5 +48,6 @@ __host__ __device__
 double operator*(const Color &lhs, const Color &rhs);
 extern Color WHITE;
 extern Color BLACK;
+*/
 
 #endif

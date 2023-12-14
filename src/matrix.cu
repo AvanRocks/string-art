@@ -46,7 +46,7 @@ void multiplyMatrixVector(const Matrix<Color> A, const T1 *v, T2 *res) {
 }
 
 template __global__ void multiplyMatrixVector(const Matrix<Color>, const double *, Color *);
-template __global__ void multiplyMatrixVector(const Matrix<Color>, const Color *, double *);
+//template __global__ void multiplyMatrixVector(const Matrix<Color>, const Color *, double *);
 
 __global__
 void addVectors(const double *a, const double *b, unsigned int len, double *res) {

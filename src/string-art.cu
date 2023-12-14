@@ -61,17 +61,24 @@ double trapezoidThickness(double distance, unsigned sideLength) {
 }
 
 double absDistanceCost(const Color& c1, const Color& c2) {
+	/*
 	double dRed = static_cast<double>(c1.red) - c2.red;
 	double dGreen = static_cast<double>(c1.green) - c2.green;
 	double dBlue = static_cast<double>(c1.blue) - c2.blue;
 	return abs(dRed) + abs(dGreen) + abs(dBlue);
+	*/
+	return 0;
 }
 
 double euclideanDistanceCost(const Color& c1, const Color& c2) {
+	/*
 	double dRed = static_cast<double>(c1.red) - c2.red;
 	double dGreen = static_cast<double>(c1.green) - c2.green;
 	double dBlue = static_cast<double>(c1.blue) - c2.blue;
 	return sqrt( pow(dRed, 2) + pow(dGreen, 2) + pow(dBlue, 2) );
+	*/
+	Color diff = c1 - c2;
+	return (diff > 0) ? diff : -diff;
 }
 
 struct Point {
@@ -110,6 +117,14 @@ void drawLine(Image &img, Point p, Point q, const Color &stringColor) {
 		for (int x = start.x; x <= end.x; x++) {
 			int y = round(m * (x - start.x) + start.y);
 			img.setPixelColor(x, y, stringColor);
+			/*
+			Color c = img.getPixelColor(x, y);
+			c -= stringColor;
+			c.red = clamp(c.red, 0., 1.);
+			c.green = clamp(c.green, 0., 1.);
+			c.blue = clamp(c.blue, 0., 1.);
+			img.setPixelColor(x, y, c);
+			*/
 		}
 
 	} else {
@@ -124,6 +139,14 @@ void drawLine(Image &img, Point p, Point q, const Color &stringColor) {
 		for (int y = start.y; y <= end.y; y++) {
 			int x = round(mInv * (y - start.y) + start.x);
 			img.setPixelColor(x, y, stringColor);
+			/*
+			Color c = img.getPixelColor(x, y);
+			c -= stringColor;
+			c.red = clamp(c.red, 0., 1.);
+			c.green = clamp(c.green, 0., 1.);
+			c.blue = clamp(c.blue, 0., 1.);
+			img.setPixelColor(x, y, c);
+			*/
 		}
 	}
 }
@@ -264,6 +287,7 @@ void makeStringArt(const StringArtParams& params) {
 		}
 	}
 
+	/*
 	cout << "bad elements of A:" << endl;
 	for (int i = 0; i < A.height; i++) {
 		for (int j = 0; j < A.width; j++) {
@@ -273,6 +297,7 @@ void makeStringArt(const StringArtParams& params) {
 			}
 		}
 	}
+	*/
 
 
 	startStopwatch("making A transpose");
@@ -380,10 +405,13 @@ void makeStringArt(const StringArtParams& params) {
 		bool same = 1;
 		for (int i = 0; i < A.height; i++) {
 			Color delta = yGood[i] - y[i];
+			/*
 			delta.red = abs(delta.red);
 			delta.green = abs(delta.green);
 			delta.blue = abs(delta.blue);
 			if (delta.red > 1e-3 || delta.green > 1e-3 || delta.blue > 1e-3) {
+			*/
+			if (delta > 1e-3) {
 				same = 0;
 				cout << "they differ" << endl;
 				cout << "yGood[" << i << "]: " << yGood[i] << endl;
@@ -396,7 +424,6 @@ void makeStringArt(const StringArtParams& params) {
 	}
 
 	vector<double> prevX(A.width);
-	double cost = numeric_limits<double>::infinity();
 	double prevCost = numeric_limits<double>::infinity();
 	for (int iter = 0; iter < params.numIters; iter++) {
 		multiplyMatrixVector<<<numBlocksPart1, BLOCK_SIZE>>>(A, x, y);
@@ -413,25 +440,11 @@ void makeStringArt(const StringArtParams& params) {
 			y[i] -= b[i];
 		}
 
-		cost = 0;
+		prevCost = 0;
 		for (int i = 0; i < A.height; i++) {
-			cost += y[i] * y[i];
+			prevCost += y[i] * y[i];
 		}
-		cost /= A.height;
-		if (iter % 10 == 0)
-			cout << "cost: " << cost << endl;
-
-		if (cost > prevCost) {
-			cout << "reverting last step" << endl;
-			// revert last step
-			for (int i = 0; i < A.width; i++) {
-				x[i] = prevX[i];
-			}
-			prevCost = numeric_limits<double>::infinity();
-			// decrease learning rate
-			learningRate *= 0.7;
-			continue;
-		}
+		prevCost /= A.height;
 
 		multiplyMatrixVector<<<numBlocksPart3, BLOCK_SIZE>>>(At, y, grad);
 		cudaAssert( cudaPeekAtLastError() );
@@ -452,6 +465,7 @@ void makeStringArt(const StringArtParams& params) {
 			// debugging
 			vector<Color> yImgData;
 			for (int i = 0; i < A.height; i++) {
+				/*
 				Color c = Color{1} - (y[i] + b[i]);
 				c.red = clamp(c.red, 0., 1.);
 				c.green = clamp(c.green, 0., 1.);
@@ -459,6 +473,10 @@ void makeStringArt(const StringArtParams& params) {
 				if (!(c.red == c.green && c.green == c.blue)) {
 					cout << i << ": " << c << endl;
 				}
+				yImgData.emplace_back(c);
+				*/
+				Color c = Color{1} - (y[i] + b[i]);
+				c = clamp(c, 0., 1.);
 				yImgData.emplace_back(c);
 			}
 			Image yImg {yImgData.data(), IMAGE_RES, IMAGE_RES};
@@ -469,8 +487,8 @@ void makeStringArt(const StringArtParams& params) {
 				for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
 					Point startPos = pegCoords[startPeg];
 					Point endPos = pegCoords[endPeg];
-					//drawLine(initial, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
-					drawLine(initial, startPos, endPos, params.stringColor);
+					//drawLine(initial, startPos, endPos, Color::interp(WHITE, params.stringColor, x[idx]));
+					drawLine(initial, startPos, endPos, interp(WHITE, params.stringColor, x[idx]));
 				}
 			}
 
@@ -503,15 +521,6 @@ void makeStringArt(const StringArtParams& params) {
 		
 		}
 
-		if (iter % 10 == 0) {
-			double mag = 0;
-			for (int i = 0; i < A.width; i++) {
-				mag += grad[i] * grad[i];
-			}
-			mag = sqrt(mag) / A.width;
-			cout << "mag: " << mag << endl;
-		}
-
 		learningRate *= 1.1;
 
 		for (int i = 0; i < A.width; i++) {
@@ -520,26 +529,78 @@ void makeStringArt(const StringArtParams& params) {
 			if (x[i] > 1) x[i] = 1;
 		}
 
+		multiplyMatrixVector<<<numBlocksPart1, BLOCK_SIZE>>>(A, x, y);
+		cudaAssert( cudaPeekAtLastError() );
+		cudaAssert( cudaDeviceSynchronize() );
+
+		for (int i = 0; i < A.height; i++) {
+			y[i] -= b[i];
+		}
+
+		double cost = 0;
+		for (int i = 0; i < A.height; i++) {
+			cost += y[i] * y[i];
+		}
+		cost /= A.height;
+		cout << cost << " " << prevCost << endl;
+
+		while (cost > prevCost) {
+			learningRate *= 0.7;
+			for (int i = 0; i < A.width; i++) {
+				x[i] = prevX[i] - learningRate * grad[i];
+				if (x[i] < 0) x[i] = 0;
+				if (x[i] > 1) x[i] = 1;
+			}
+
+			multiplyMatrixVector<<<numBlocksPart1, BLOCK_SIZE>>>(A, x, y);
+			cudaAssert( cudaPeekAtLastError() );
+			cudaAssert( cudaDeviceSynchronize() );
+
+			for (int i = 0; i < A.height; i++) {
+				y[i] -= b[i];
+			}
+
+			cost = 0;
+			for (int i = 0; i < A.height; i++) {
+				cost += y[i] * y[i];
+			}
+			cost /= A.height;
+			cout << cost << " " << prevCost << " " << learningRate << endl;
+			//if (learningRate < 1e-3) break;
+		}
+		cout << "done iter " << iter << endl;
+
 		prevCost = cost;
 		for (int i = 0; i < A.width; i++) {
 			prevX[i] = x[i];
 		}
+
+		if (iter % 10 == 0) {
+			double mag = 0;
+			for (int i = 0; i < A.width; i++) {
+				mag += grad[i] * grad[i];
+			}
+			mag = sqrt(mag) / A.width;
+			cout << "cost: " << cost << endl;
+			cout << "iter " << iter << ", mag: " << mag << endl;
+		}
+
 		//cout << "done " << iter + 1 << endl;
 	}
 
 	// debugging
-	cout << "product:" << endl;
 	vector<Color> yImgData;
 	for (int i = 0; i < A.height; i++) {
-			//yImgData.emplace_back(Color{1} - (y[i] + b[i]));
-			Color c = Color{1} - (y[i] + b[i]);
-			c.red = clamp(c.red, 0., 1.);
-			c.green = clamp(c.green, 0., 1.);
-			c.blue = clamp(c.blue, 0., 1.);
-			if (!(c.red == c.green && c.green == c.blue)) {
-				cout << i << ": " << c << endl;
-			}
-			yImgData.emplace_back(c);
+		/*
+		Color c = Color{1} - (y[i] + b[i]);
+		c.red = clamp(c.red, 0., 1.);
+		c.green = clamp(c.green, 0., 1.);
+		c.blue = clamp(c.blue, 0., 1.);
+		yImgData.emplace_back(c);
+		*/
+		Color c = Color{1} - (y[i] + b[i]);
+		c = clamp(c, 0., 1.);
+		yImgData.emplace_back(c);
 	}
 	Image yImg {yImgData.data(), IMAGE_RES, IMAGE_RES};
 	yImg.write("tmp/product.png");
@@ -569,10 +630,11 @@ void makeStringArt(const StringArtParams& params) {
 	/*
 	for (int startPeg = 0, idx = 0; startPeg < params.numPegs; startPeg++) {
 		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
-			if (x[idx] > 0.3) {
+			if (x[idx] > 0.5) {
 				Point startPos = pegCoords[startPeg];
 				Point endPos = pegCoords[endPeg];
-				drawLine(canvas, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
+				//drawLine(canvas, startPos, endPos, Color::interp(WHITE params.stringColor, x[idx]));
+				drawLine(canvas, startPos, endPos, interp(WHITE params.stringColor, x[idx]));
 			}
 		}
 	}
@@ -584,10 +646,10 @@ void makeStringArt(const StringArtParams& params) {
 		for (int endPeg = startPeg + 1; endPeg < params.numPegs; endPeg++, idx++) {
 			Point startPos = pegCoords[startPeg];
 			Point endPos = pegCoords[endPeg];
-			drawLine(canvas, startPos, endPos, Color::interp(params.backgroundColor, params.stringColor, x[idx]));
+			//drawLine(canvas, startPos, endPos, Color::interp(WHITE, params.stringColor, x[idx]));
+			drawLine(canvas, startPos, endPos, interp(WHITE, params.stringColor, x[idx]));
 		}
 	}
-	canvas.write(params.outputImageFilename);
 	*/
 		
 	while (true) {
@@ -611,9 +673,13 @@ void makeStringArt(const StringArtParams& params) {
 		for (int i = 0; i < numLines && i < v.size(); i++) {
 			int startPeg, endPeg;
 			tie(startPeg, endPeg) = v[i].second;
+			double weight = v[i].first;
 			Point startPos = pegCoords[startPeg];
 			Point endPos = pegCoords[endPeg];
-			drawLine(tmp, startPos, endPos, params.stringColor);
+			//cout << weight << " " <<  Color::interp(WHITE, params.stringColor, weight) << endl;
+			//drawLine(tmp, startPos, endPos, Color::interp(WHITE, params.stringColor, weight));
+			cout << weight << " " <<  interp(WHITE, params.stringColor, weight) << endl;
+			drawLine(tmp, startPos, endPos, interp(WHITE, params.stringColor, weight));
 		}
 		cout << " done" << endl;
 		

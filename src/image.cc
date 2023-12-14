@@ -28,9 +28,14 @@ Image::Image(Color c, size_t width, size_t height)
 	: img{
 				Magick::Geometry{width, height}, 
 				Magick::Color(
+											/*
 											c.red * this->maxSample(),
 											c.green * this->maxSample(),
 											c.blue * this->maxSample(),
+											*/
+											c * this->maxSample(),
+											c * this->maxSample(),
+											c * this->maxSample(),
 
 											// For Imagemagick 7
 											//this->maxSample()
@@ -134,16 +139,24 @@ Sample Image::maxSample() const {
 
 Color Image::getPixelColor(unsigned x, unsigned y) const {
 	const Pixel& p = get(x, y);
+	/*
 	Color c { static_cast<double>(p.red) / this->maxSample(), 
 						static_cast<double>(p.green) / this->maxSample(), 
 						static_cast<double>(p.blue) / this->maxSample() };
 	return c;
+	*/
+	return (p.red + p.green + p.blue) / (3.0 * this->maxSample());
 }
 
 void Image::setPixelColor(unsigned x, unsigned y, const Color &c) {
 	Pixel& p = get(x, y);
 
+	/*
 	p.red = static_cast<Sample>(c.red * this->maxSample());
 	p.green = static_cast<Sample>(c.green * this->maxSample());
 	p.blue = static_cast<Sample>(c.blue * this->maxSample());
+	*/
+	p.red = static_cast<Sample>(c * this->maxSample());
+	p.green = static_cast<Sample>(c * this->maxSample());
+	p.blue = static_cast<Sample>(c * this->maxSample());
 }

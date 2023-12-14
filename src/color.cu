@@ -1,6 +1,12 @@
 #include "color.h"
 using namespace std;
 
+Color WHITE {1};
+Color BLACK {0};
+Color interp(const Color &c1, const Color &c2, double t) {
+	return c1 * (1 - t) + c2 * t;
+}
+/*
 Color WHITE{1, 1, 1};
 Color BLACK{0, 0, 0};
 
@@ -86,3 +92,4 @@ Color operator/(const Color &lhs, const double scale) {
 	result /= scale;
 	return result;
 }
+*/

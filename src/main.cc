@@ -35,7 +35,8 @@ Color getColor(string color) {
 		int red =  getHexDigit(color[1]) * 16 + getHexDigit(color[2]);
 		int green =  getHexDigit(color[3]) * 16 + getHexDigit(color[4]);
 		int blue =  getHexDigit(color[5]) * 16 + getHexDigit(color[6]);
-		Color c {red / 256.0, green / 256.0, blue / 256.0}; 
+		//Color c {red / 256.0, green / 256.0, blue / 256.0}; 
+		Color c = (red / 256.0 + green / 256.0 + blue / 256.0) / 3.0;
 		cout << "color: " << c << endl;
 		return c;
 	} else {
