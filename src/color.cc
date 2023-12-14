@@ -1,6 +1,9 @@
 #include "color.h"
 using namespace std;
 
+Color WHITE {256};
+Color BLACK {0};
+/*
 Color WHITE{1, 1, 1};
 Color BLACK{0, 0, 0};
 
@@ -24,3 +27,4 @@ bool operator==(const Color &c1, const Color &c2) {
 ostream &operator<<(ostream &out, const Color &c) {
 	return out << "(" << c.red << ", " << c.green << ", " << c.blue << ")";
 }
+*/

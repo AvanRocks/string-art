@@ -3,6 +3,11 @@
 
 #include <iostream>
 
+using Color = short;
+extern Color WHITE;
+extern Color BLACK;
+
+/*
 struct Color {
 	double red, green, blue;
 	Color(double, double, double);
@@ -14,5 +19,6 @@ bool operator==(const Color &c1, const Color &c2);
 std::ostream &operator<<(std::ostream &out, const Color &c);
 extern Color WHITE;
 extern Color BLACK;
+*/
 
 #endif

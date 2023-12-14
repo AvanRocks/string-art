@@ -42,17 +42,24 @@ double trapezoidThickness(double distance, unsigned sideLength) {
 }
 
 double absDistanceCost(const Color& c1, const Color& c2) {
+	/*
 	double dRed = static_cast<double>(c1.red) - c2.red;
 	double dGreen = static_cast<double>(c1.green) - c2.green;
 	double dBlue = static_cast<double>(c1.blue) - c2.blue;
 	return abs(dRed) + abs(dGreen) + abs(dBlue);
+	*/
+	return 0;
 }
 
 double euclideanDistanceCost(const Color& c1, const Color& c2) {
+	short diff = c1 - c2;
+	return diff > 0 ? diff : -diff;
+	/*
 	double dRed = static_cast<double>(c1.red) - c2.red;
 	double dGreen = static_cast<double>(c1.green) - c2.green;
 	double dBlue = static_cast<double>(c1.blue) - c2.blue;
 	return sqrt( pow(dRed, 2) + pow(dGreen, 2) + pow(dBlue, 2) );
+	*/
 }
 
 struct Point {
@@ -77,7 +84,7 @@ vector<Point> precomputePegCoords(const int numPegs, const Image &img) {
 	return pegCoords;
 }
 
-bool useBit = true;
+bool useBit = false;
 
 // calculate the improvement that would be gained by drawing a line
 double calcImprovement(
@@ -120,17 +127,23 @@ double calcImprovement(
 			int boxBottom = min(midY + params.rectSize / 2, height - 1);
 
 			// calculate average color in this rectangle in the reference and canvas images
-			Color referenceTotal(0), canvasTotal(0);
+			//Color referenceTotal(0), canvasTotal(0);
+			int referenceTotal = 0, canvasTotal = 0;
 			if (useBit) {
+				/*
 				referenceTotal.red += referenceBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
 				referenceTotal.green += referenceBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
 				referenceTotal.blue += referenceBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
 				canvasTotal.red += canvasBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
 				canvasTotal.green += canvasBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
 				canvasTotal.blue += canvasBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
+				*/
 			} else {
 				for (int y = boxTop; y <= boxBottom; y++) {
 					for (int x = boxLeft; x <= boxRight; x++) {
+						referenceTotal += reference.getPixelColor(x, y);
+						canvasTotal += canvas.getPixelColor(x, y);
+						/*
 						Color c = reference.getPixelColor(x, y);
 						referenceTotal.red += c.red;
 						referenceTotal.green += c.green;
@@ -139,6 +152,7 @@ double calcImprovement(
 						canvasTotal.red += c.red;
 						canvasTotal.green += c.green;
 						canvasTotal.blue += c.blue;
+						*/
 					}
 				}
 			}
@@ -146,6 +160,7 @@ double calcImprovement(
 			// number of squares in the rectangle
 			int area = (boxRight - boxLeft + 1) * (boxBottom - boxTop + 1);
 
+			/*
 			Color referenceAverage(referenceTotal);
 			referenceAverage.red /= area;
 			referenceAverage.green /= area;
@@ -155,6 +170,9 @@ double calcImprovement(
 			canvasAverage.red /= area;
 			canvasAverage.green /= area;
 			canvasAverage.blue /= area;
+			*/
+			Color referenceAverage {(double)referenceTotal / area};
+			Color canvasAverage {(double)canvasTotal / area};
 
 			double oldCost = params.costFunc(referenceAverage, canvasAverage);
 
@@ -162,6 +180,7 @@ double calcImprovement(
 			// TODO: support string thickness
 			for (int x = x1; x <= x2; x++) {
 				int y = round(m * (x - start.x) + start.y);
+				/*
 				Color c = canvas.getPixelColor(x, y);
 				canvasTotal.red -= c.red;
 				canvasTotal.green -= c.green;
@@ -169,12 +188,18 @@ double calcImprovement(
 				canvasTotal.red += params.stringColor.red;
 				canvasTotal.green += params.stringColor.green;
 				canvasTotal.blue += params.stringColor.blue;
+				*/
+				canvasTotal -= canvas.getPixelColor(x, y);
+				canvasTotal += params.stringColor;
 			}
 
+			/*
 			Color stringAverage(canvasTotal);
 			stringAverage.red /= area;
 			stringAverage.green /= area;
 			stringAverage.blue /= area;
+			*/
+			Color stringAverage {(double)canvasTotal / area};
 
 			double newCost = params.costFunc(referenceAverage, stringAverage);
 
@@ -203,18 +228,24 @@ double calcImprovement(
 			int boxBottom = min(midY + params.rectSize / 2, height - 1);
 
 			// calculate average color in this rectangle in the reference and canvas images
-			Color referenceTotal(0), canvasTotal(0);
+			//Color referenceTotal(0), canvasTotal(0);
+			int referenceTotal = 0, canvasTotal = 0;
 			
 			if (useBit) {
+				/*
 				referenceTotal.red += referenceBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
 				referenceTotal.green += referenceBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
 				referenceTotal.blue += referenceBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
 				canvasTotal.red += canvasBits[0].query(boxLeft, boxRight, boxTop, boxBottom);
 				canvasTotal.green += canvasBits[1].query(boxLeft, boxRight, boxTop, boxBottom);
 				canvasTotal.blue += canvasBits[2].query(boxLeft, boxRight, boxTop, boxBottom);
+				*/
 			} else {
 				for (int y = boxTop; y <= boxBottom; y++) {
 					for (int x = boxLeft; x <= boxRight; x++) {
+						referenceTotal += reference.getPixelColor(x, y);
+						canvasTotal += canvas.getPixelColor(x, y);
+						/*
 						Color c = reference.getPixelColor(x, y);
 						referenceTotal.red += c.red;
 						referenceTotal.green += c.green;
@@ -223,6 +254,7 @@ double calcImprovement(
 						canvasTotal.red += c.red;
 						canvasTotal.green += c.green;
 						canvasTotal.blue += c.blue;
+						*/
 					}
 				}
 			}
@@ -230,6 +262,7 @@ double calcImprovement(
 			// number of squares in the rectangle
 			int area = (boxRight - boxLeft + 1) * (boxBottom - boxTop + 1);
 
+			/*
 			Color referenceAverage(referenceTotal);
 			referenceAverage.red /= area;
 			referenceAverage.green /= area;
@@ -239,6 +272,9 @@ double calcImprovement(
 			canvasAverage.red /= area;
 			canvasAverage.green /= area;
 			canvasAverage.blue /= area;
+			*/
+			Color referenceAverage {(double)referenceTotal / area};
+			Color canvasAverage {(double)canvasTotal / area};
 
 			double oldCost = params.costFunc(referenceAverage, canvasAverage);
 
@@ -246,6 +282,7 @@ double calcImprovement(
 			// TODO: support string thickness
 			for (int y = y1; y <= y2; y++) {
 				int x = round(mInv * (y - start.y) + start.x);
+				/*
 				Color c = canvas.getPixelColor(x, y);
 				canvasTotal.red -= c.red;
 				canvasTotal.green -= c.green;
@@ -253,12 +290,19 @@ double calcImprovement(
 				canvasTotal.red += params.stringColor.red;
 				canvasTotal.green += params.stringColor.green;
 				canvasTotal.blue += params.stringColor.blue;
+				*/
+				canvasTotal -= canvas.getPixelColor(x, y);
+				canvasTotal += params.stringColor;
 			}
 
+			/*
 			Color stringAverage(canvasTotal);
 			stringAverage.red /= area;
 			stringAverage.green /= area;
 			stringAverage.blue /= area;
+			*/
+
+			Color stringAverage {(double)canvasTotal / area};
 
 			double newCost = params.costFunc(referenceAverage, stringAverage);
 
@@ -281,6 +325,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 	unsigned height = reference.getHeight();
 	array<Bit<double>, 3> referenceBits {{{width, height}, {width, height}, {width, height}}};
 	array<Bit<double>, 3> canvasBits {{{width, height}, {width, height}, {width, height}}};
+	/*
 	for (unsigned y = 0; y < height; y++) {
 		for (unsigned x = 0; x < width; x++) {
 			Color c = reference.getPixelColor(x, y);
@@ -293,6 +338,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			canvasBits[2].update(x, y, c.blue);
 		}
 	}
+	*/
 
 	int currPegNum = 0, prevPegNum = -1;
 	// count the number of consecutive iterations with zero max improvement
@@ -341,12 +387,16 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			// draw the line to the canvas
 			for (int x = start.x; x <= end.x; x++) {
 				int y = round(m * (x - start.x) + start.y);
-				Color orig = canvas.getPixelColor(x, y);
-				canvas.setPixelColor(x, y, params.stringColor);
 				if (useBit) {
+					/*
+					Color orig = canvas.getPixelColor(x, y);
+					canvas.setPixelColor(x, y, params.stringColor);
 					canvasBits[0].update(x, y, params.stringColor.red - orig.red);
 					canvasBits[1].update(x, y, params.stringColor.green - orig.green);
 					canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
+					*/
+				} else {
+					canvas.setPixelColor(x, y, params.stringColor);
 				}
 			}
 
@@ -361,12 +411,17 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			// draw the line to the canvas
 			for (int y = start.y; y <= end.y; y++) {
 				int x = round(mInv * (y - start.y) + start.x);
-				Color orig = canvas.getPixelColor(x, y);
-				canvas.setPixelColor(x, y, params.stringColor);
 				if (useBit) {
+					/*
+					Color orig = canvas.getPixelColor(x, y);
+					canvas.setPixelColor(x, y, params.stringColor);
 					canvasBits[0].update(x, y, params.stringColor.red - orig.red);
 					canvasBits[1].update(x, y, params.stringColor.green - orig.green);
 					canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
+					*/
+				} else {
+					Color orig = canvas.getPixelColor(x, y);
+					canvas.setPixelColor(x, y, params.stringColor);
 				}
 			}
 		}
@@ -405,12 +460,14 @@ void makeStringArt(const StringArtParams& params) {
 	if (params.rgbOutput) {
 		// do three passes, one for each color
 		StringArtParams newParams {params};
+		/*
 		newParams.stringColor = Color{1, 0, 0};
 		draw(img, output, newParams);
 		newParams.stringColor = Color{0, 1, 0};
 		draw(img, output, newParams);
 		newParams.stringColor = Color{0, 0, 1};
 		draw(img, output, newParams);
+		*/
 	} else {
 		// single pass with specified color
 		draw(img, output, params);

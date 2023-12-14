@@ -30,6 +30,7 @@ int getHexDigit(char c) {
 }
 
 Color getColor(string color) {
+	/*
 	if (color[0] == '#') {
 		// hex code
 		int red =  getHexDigit(color[1]) * 16 + getHexDigit(color[2]);
@@ -39,6 +40,8 @@ Color getColor(string color) {
 	} else {
 		return Color{stod(color.substr(1))};
 	}
+	*/
+	return BLACK;
 }
 
 void setOutputFilename(StringArtParams &params, string name) { params.outputImageFilename = name; }
