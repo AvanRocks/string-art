@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <array>
+#include <deque>
 
 #include "string-art.h"
 #include "image.h"
@@ -53,7 +54,7 @@ double absDistanceCost(const Color& c1, const Color& c2) {
 
 double euclideanDistanceCost(const Color& c1, const Color& c2) {
 	short diff = c1 - c2;
-	return diff > 0 ? diff : -diff;
+	return diff >= 0 ? diff : -diff;
 	/*
 	double dRed = static_cast<double>(c1.red) - c2.red;
 	double dGreen = static_cast<double>(c1.green) - c2.green;
@@ -189,8 +190,7 @@ double calcImprovement(
 				canvasTotal.green += params.stringColor.green;
 				canvasTotal.blue += params.stringColor.blue;
 				*/
-				canvasTotal -= canvas.getPixelColor(x, y);
-				canvasTotal += params.stringColor;
+				canvasTotal -= min(canvas.getPixelColor(x, y), params.stringColor);
 			}
 
 			/*
@@ -291,8 +291,7 @@ double calcImprovement(
 				canvasTotal.green += params.stringColor.green;
 				canvasTotal.blue += params.stringColor.blue;
 				*/
-				canvasTotal -= canvas.getPixelColor(x, y);
-				canvasTotal += params.stringColor;
+				canvasTotal -= min(canvas.getPixelColor(x, y), params.stringColor);
 			}
 
 			/*
@@ -340,7 +339,8 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 	}
 	*/
 
-	int currPegNum = 0, prevPegNum = -1;
+	int currPegNum = 0;
+	deque<int> lastPegNums;
 	// count the number of consecutive iterations with zero max improvement
 	int countZero = 0;
 	for (int iter = 0; iter < params.numIters; iter++) {
@@ -351,10 +351,11 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 
 		#pragma omp parallel for
 		for (int nextPegNum = 0; nextPegNum < params.numPegs; nextPegNum++) {
-			if (nextPegNum == prevPegNum || nextPegNum == currPegNum) continue;
+			if (nextPegNum == currPegNum) continue;
+
+			if (find(lastPegNums.begin(), lastPegNums.end(), nextPegNum) != lastPegNums.end()) continue;
 
 			// TODO decide whether to keep this or not
-			if (abs(nextPegNum - prevPegNum) < 0.1 * params.numPegs) continue;
 			if (abs(nextPegNum - currPegNum) < 0.1 * params.numPegs) continue;
 
 			Point nextPegPos = pegCoords[nextPegNum];
@@ -367,7 +368,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 			}
 		}
 
-		if (iter % 100 == 0) {
+		if (iter % 1000 == 0) {
 			cout << "done " << iter << endl;
 			cout << "max improvement " << maxImprovement << endl;
 			canvas.write(params.outputImageFilename);
@@ -396,7 +397,7 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 					canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
 					*/
 				} else {
-					canvas.setPixelColor(x, y, params.stringColor);
+					canvas.setPixelColor(x, y, max(0, canvas.getPixelColor(x, y) - params.stringColor));
 				}
 			}
 
@@ -420,28 +421,27 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 					canvasBits[2].update(x, y, params.stringColor.blue - orig.blue);
 					*/
 				} else {
-					Color orig = canvas.getPixelColor(x, y);
-					canvas.setPixelColor(x, y, params.stringColor);
+					canvas.setPixelColor(x, y, max(0, canvas.getPixelColor(x, y) - params.stringColor));
 				}
 			}
 		}
 
-		prevPegNum = currPegNum;
 		currPegNum = bestPegNum;
+		lastPegNums.push_back(currPegNum);
+		if (lastPegNums.size() > 100) {
+			lastPegNums.pop_front();
+		}
 
-		/*
 		if (maxImprovement <= 0) {
 			countZero++;
-			//cout << "max improvement 0" << endl;
 		} else {
 			countZero = 0;
 		}
 
-		if (countZero == 100) {
+		if (countZero == 1000) {
 			cout << "Stopping early due to " << countZero << " consecutive iterations with no improvement" << endl;
 			break;
 		}
-		*/
 	}
 
 }

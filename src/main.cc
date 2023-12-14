@@ -41,7 +41,7 @@ Color getColor(string color) {
 		return Color{stod(color.substr(1))};
 	}
 	*/
-	return BLACK;
+	return stoi(color);
 }
 
 void setOutputFilename(StringArtParams &params, string name) { params.outputImageFilename = name; }
