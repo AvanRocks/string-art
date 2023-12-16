@@ -51,23 +51,11 @@ void setStringColor(StringArtParams &params, string color) { params.stringColor 
 void setBackgroundColor(StringArtParams &params, string color) { params.backgroundColor = getColor(color); }
 void setNumPegs(StringArtParams &params, string numPegs) { params.numPegs = stoi(numPegs); }
 void setNumIters(StringArtParams &params, string numIters) { params.numIters = stoi(numIters); }
-void setRectSize(StringArtParams &params, string rectSize) { params.rectSize = stoi(rectSize); }
-
-void setThicknessFunc(StringArtParams &params, string thicknessFunc) { 
-	if (thicknessFunc == "flat") {
-		params.thicknessFunc = flatThickness;
-	} else if (thicknessFunc == "trapezoid") {
-		params.thicknessFunc = trapezoidThickness;
-	} else {
-		cout << "Unrecognized thickness function" << endl;
-	}
-}
+void setMinDist(StringArtParams &params, string minDist) { params.minDist = stoi(minDist); }
 
 void setCostFunc(StringArtParams &params, string costFunc) { 
 	if (costFunc == "abs") {
 		params.costFunc = absDistanceCost;
-	} else if (costFunc == "euclidean") {
-		params.costFunc = euclideanDistanceCost;
 	} else {
 		cout << "Unrecognized cost function" << endl;
 	}
@@ -84,8 +72,7 @@ vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, st
 	{{"--background-color", "-b"},	setBackgroundColor,		"set the background color"},
 	{{"--num-pegs", "-p"},					setNumPegs,						"set the number of pegs around the circle"},
 	{{"--num-iterations", "-i"},		setNumIters,					"set the number of lines to be drawn"},
-	{{"--rect-size", "-r"},					setRectSize,					"set the resolution, in pixels, to use when calculating the best lines to draw"},
-	{{"--thickness-func", "-t"},		setThicknessFunc,			"set the function that determines the thickness of the string"},
+	{{"--min-dist", "-m"},					setMinDist,						"set the minimum arc length that lines must subtend, in percent of 360 degrees"},
 	{{"--cost-func", "-c"},					setCostFunc,					"set the function that determines the perceived difference between colors"},
 	{{"--help", "-h"},							usage,								"display this help and exit"}
 };

@@ -5,16 +5,10 @@
 
 #include "color.h"
 
-typedef double (*ThicknessFunc)(double distance, unsigned sideLength);
 typedef double (*CostFunc)(const Color& c1, const Color& c2);
-
-// sample thickness functions
-double flatThickness(double distance, unsigned sideLength);
-double trapezoidThickness(double distance, unsigned sideLength);
 
 // sample cost functions
 double absDistanceCost(const Color& p1, const Color& p2);
-double euclideanDistanceCost(const Color& p1, const Color& p2);
 
 /* TODO? 
  *	- transparent background
@@ -33,9 +27,11 @@ public:
 	Color backgroundColor {WHITE};
 	int numPegs {200}; 
 	int numIters {10000};
-	int rectSize {10};
-	ThicknessFunc thicknessFunc {trapezoidThickness};
-	CostFunc costFunc {euclideanDistanceCost};
+
+	// 10 means any line must be between two pegs that are 10% of the circle away from each other
+	int minDist{10};
+
+	CostFunc costFunc {absDistanceCost};
 
 	// throws errors if any parameters are invalid
 	void validate() const;
