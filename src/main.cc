@@ -47,6 +47,7 @@ Color getColor(string color) {
 void setOutputFilename(StringArtParams &params, string name) { params.outputImageFilename = name; }
 void setGrayscaleInput(StringArtParams &params) { params.grayscaleInput = true; }
 void setRGBOutput(StringArtParams &params) { params.rgbOutput = true; }
+void setLineWeight(StringArtParams &params, string weight) { params.lineWeight = stoi(weight); }
 void setStringColor(StringArtParams &params, string color) { params.stringColor = getColor(color); }
 void setBackgroundColor(StringArtParams &params, string color) { params.backgroundColor = getColor(color); }
 void setNumPegs(StringArtParams &params, string numPegs) { params.numPegs = stoi(numPegs); }
@@ -65,16 +66,17 @@ void usage(char *name);
 
 vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, string>> cliParams 
 {
-	{{"--output", "-o"},						setOutputFilename,		"set the output image filename"},
-	{{"--grayscale-input", "-g"},		setGrayscaleInput,		"convert the input image to grayscale"},
-	{{"--rgb-output", "-rgb"},				setRGBOutput,					"use red, green, and blue strings to generate a color image"},
-	{{"--string-color", "-s"},			setStringColor,				"set the color of the lines used to draw the image"},
-	{{"--background-color", "-b"},	setBackgroundColor,		"set the background color"},
-	{{"--num-pegs", "-p"},					setNumPegs,						"set the number of pegs around the circle"},
-	{{"--num-iterations", "-i"},		setNumIters,					"set the number of lines to be drawn"},
-	{{"--min-dist", "-m"},					setMinDist,						"set the minimum arc length that lines must subtend, in percent of 360 degrees"},
-	{{"--cost-func", "-c"},					setCostFunc,					"set the function that determines the perceived difference between colors"},
-	{{"--help", "-h"},							usage,								"display this help and exit"}
+	{{"--output",            "-o"},    setOutputFilename,     "set the output image filename"},
+	{{"--grayscale-input",   "-g"},    setGrayscaleInput,     "convert the input image to grayscale"},
+	{{"--rgb-output",        "-rgb"},  setRGBOutput,          "use red, green, and blue strings to generate a color image"},
+	{{"--line-weight",       "-l"},    setLineWeight,         "set how dark the program thinks the line is (0-255)"},
+	{{"--string-color",      "-s"},    setStringColor,        "set the color of the lines used to draw the image"},
+	{{"--background-color",  "-b"},    setBackgroundColor,    "set the background color"},
+	{{"--num-pegs",          "-p"},    setNumPegs,            "set the number of pegs around the circle"},
+	{{"--num-iterations",    "-i"},    setNumIters,           "set the number of lines to be drawn"},
+	{{"--min-dist",          "-m"},    setMinDist,            "set the minimum arc length that lines must subtend, in percent of 360 degrees"},
+	{{"--cost-func",         "-c"},    setCostFunc,           "set the function that determines the perceived difference between colors"},
+	{{"--help",              "-h"},    usage,                 "display this help and exit"}
 };
 
 void usage(char *name) {

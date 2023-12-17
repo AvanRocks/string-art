@@ -69,9 +69,8 @@ vector<vector<vector<Point>>> precomputeLines(const int numPegs, const Image &im
 				// slope of line from start to end
 				double m = (double)(end.y - start.y) / (end.x - start.x);
 
-				// visit each rectangle
-				for (int x = start.x; x < end.x; x++) {
-					int y = round(m * (x - start.x) + start.y);
+				for (short x = start.x; x < end.x; x++) {
+					short y = round(m * (x - start.x) + start.y);
 					lines[startPeg][endPeg].push_back({x, y});
 					lines[endPeg][startPeg].push_back({x, y});
 				}
@@ -83,9 +82,8 @@ vector<vector<vector<Point>>> precomputeLines(const int numPegs, const Image &im
 				// reciprocal of slope of line from start to end
 				double mInv = (double)(end.x - start.x) / (end.y - start.y);
 
-				// visit each rectangle
-				for (int y = start.y; y < end.y; y++) {
-					int x = round(mInv * (y - start.y) + start.x);
+				for (short y = start.y; y < end.y; y++) {
+					short x = round(mInv * (y - start.y) + start.x);
 					lines[startPeg][endPeg].push_back({x, y});
 					lines[endPeg][startPeg].push_back({x, y});
 				}
@@ -102,7 +100,7 @@ vector<vector<vector<Point>>> precomputeLines(const int numPegs, const Image &im
 // calculate the improvement that would be gained by drawing a line
 double calcImprovement(
 		const Image &reference,
-		const Image &canvas,
+		const Image &virtualCanvas,
 		const vector<vector<vector<Point>>> &lines,
 		const int peg1,
 		const int peg2,
@@ -114,12 +112,12 @@ double calcImprovement(
 
 	for (const Point &p : lines[peg1][peg2]) {
 		Color referenceColor = reference.getPixelColor(p.x, p.y);
-		Color canvasColor = canvas.getPixelColor(p.x, p.y);
+		Color virtualCanvasColor = virtualCanvas.getPixelColor(p.x, p.y);
 
-		double oldCost = params.costFunc(referenceColor, canvasColor);
+		double oldCost = params.costFunc(referenceColor, virtualCanvasColor);
 
 		// color after drawing a line here
-		Color stringColor = max(0, canvasColor -  params.stringColor);
+		Color stringColor = max(0, virtualCanvasColor -  params.lineWeight);
 
 		double newCost = params.costFunc(referenceColor, stringColor);
 
@@ -130,10 +128,9 @@ double calcImprovement(
 	return totalImprovement / numPixelsDrawn;
 }
 
-// The canvas image is the output of the string art drawing. However, we want
-// to be able to draw multiple times on the same canvas with different colors.
-// This is why the canvas image is taken as a parameter.
-void draw(const Image& reference, Image& canvas, const StringArtParams& params) {
+// The lines on the virtual canvas are colored as params.lineWeight, while the
+// actualCanvas has lines of color params.stringColor
+void draw(const Image& reference, Image &virtualCanvas, Image& actualCanvas, const StringArtParams& params) {
 	int minDistPegs = params.minDist / 100.0 * params.numPegs;
 	vector<vector<vector<Point>>> lines {precomputeLines(params.numPegs, reference, minDistPegs)};
 
@@ -152,7 +149,8 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 
 			if (find(lastPegNums.begin(), lastPegNums.end(), nextPegNum) != lastPegNums.end()) continue;
 
-			double improvement = calcImprovement(reference, canvas, lines, currPegNum, nextPegNum, params);
+			// use virtual canvas to calculate improvement
+			double improvement = calcImprovement(reference, virtualCanvas, lines, currPegNum, nextPegNum, params);
 			if (improvement > maxImprovement) {
 				#pragma omp atomic write
 				maxImprovement = improvement;
@@ -168,13 +166,15 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 		if (iter % 1000 == 0) {
 			cout << "done " << iter << endl;
 			cout << "max improvement " << maxImprovement << endl;
-			canvas.write(params.outputImageFilename);
+			actualCanvas.write(params.outputImageFilename);
 		}
 
 
-		// draw the line
+		// draw a line with Color params.stringColor onto the actualCanvas
+		// and draw a line with Color params.lineWeight onto the virtualCanvas
 		for (const Point &p : lines[currPegNum][bestPegNum]) {
-			canvas.setPixelColor(p.x, p.y, max(0, canvas.getPixelColor(p.x, p.y) - params.stringColor));
+			actualCanvas.setPixelColor(p.x, p.y, max(0, actualCanvas.getPixelColor(p.x, p.y) - params.stringColor));
+			virtualCanvas.setPixelColor(p.x, p.y, max(0, virtualCanvas.getPixelColor(p.x, p.y) - params.lineWeight));
 		}
 
 		currPegNum = bestPegNum;
@@ -201,7 +201,8 @@ void makeStringArt(const StringArtParams& params) {
 	params.validate();
 
 	Image img {params.inputImageFilename};
-	Image output {params.backgroundColor, img.getWidth(), img.getHeight()};
+	Image virtualCanvas {params.backgroundColor, img.getWidth(), img.getHeight()};
+	Image actualCanvas {params.backgroundColor, img.getWidth(), img.getHeight()};
 
 	if (params.grayscaleInput) {
 		img.convertToGrayscale();
@@ -214,17 +215,17 @@ void makeStringArt(const StringArtParams& params) {
 		StringArtParams newParams {params};
 		/*
 		newParams.stringColor = Color{1, 0, 0};
-		draw(img, output, newParams);
+		draw(img, virtualCanvas, actualCanvas, newParams);
 		newParams.stringColor = Color{0, 1, 0};
-		draw(img, output, newParams);
+		draw(img, virtualCanvas, actualCanvas, newParams);
 		newParams.stringColor = Color{0, 0, 1};
-		draw(img, output, newParams);
+		draw(img, virtualCanvas, actualCanvas, newParams);
 		*/
 	} else {
 		// single pass with specified color
-		draw(img, output, params);
+		draw(img, virtualCanvas, actualCanvas, params);
 	}
 
-	output.write(params.outputImageFilename);
+	actualCanvas.write(params.outputImageFilename);
 }
 

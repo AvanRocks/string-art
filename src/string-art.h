@@ -23,6 +23,7 @@ public:
 	// do three drawing passes, one with each of a 
 	// red, green, and blue colored string.
 	bool rgbOutput {false};
+	short lineWeight {20};
 	Color stringColor {20};
 	Color backgroundColor {WHITE};
 	int numPegs {200}; 
