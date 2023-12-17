@@ -126,63 +126,6 @@ double calcImprovement(
 		totalImprovement += oldCost - newCost;
 	}
 
-	/*
-	int lenX = abs(pos1.x - pos2.x);
-	int lenY = abs(pos1.y - pos2.y);
-
-	bool leftToRight = lenX > lenY;
-
-	if (leftToRight) {
-		Point start = (pos1.x < pos2.x) ? pos1 : pos2;
-		Point end = (pos1.x < pos2.x) ? pos2 : pos1;
-
-		// slope of line from start to end
-		double m = (double)(end.y - start.y) / (end.x - start.x);
-
-		// visit each rectangle
-		for (int x = start.x; x < end.x; x++) {
-			int y = round(m * (x - start.x) + start.y);
-
-			Color referenceColor = reference.getPixelColor(x, y);
-			Color canvasColor = canvas.getPixelColor(x, y);
-
-			double oldCost = params.costFunc(referenceColor, canvasColor);
-
-			// color after drawing a line here
-			Color stringColor = max(0, canvasColor -  params.stringColor);
-
-			double newCost = params.costFunc(referenceColor, stringColor);
-
-			totalImprovement += oldCost - newCost;
-		}
-	} else {
-		// top to bottom
-		Point start = (pos1.y < pos2.y) ? pos1 : pos2;
-		Point end = (pos1.y < pos2.y) ? pos2 : pos1;
-
-		// reciprocal of slope of line from start to end
-		double mInv = (double)(end.x - start.x) / (end.y - start.y);
-
-		// visit each rectangle
-		for (int y = start.y; y < end.y; y++) {
-			int x = round(mInv * (y - start.y) + start.x);
-
-			Color referenceColor = reference.getPixelColor(x, y);
-			Color canvasColor = canvas.getPixelColor(x, y);
-
-			double oldCost = params.costFunc(referenceColor, canvasColor);
-
-			// color after drawing a line here
-			Color stringColor = max(0, canvasColor -  params.stringColor);
-
-			double newCost = params.costFunc(referenceColor, stringColor);
-
-			totalImprovement += oldCost - newCost;
-		}
-	}
-	*/
-
-	//int numPixelsDrawn = max(lenX, lenY);
 	int numPixelsDrawn = lines[peg1][peg2].size();
 	return totalImprovement / numPixelsDrawn;
 }
@@ -233,37 +176,6 @@ void draw(const Image& reference, Image& canvas, const StringArtParams& params) 
 		for (const Point &p : lines[currPegNum][bestPegNum]) {
 			canvas.setPixelColor(p.x, p.y, max(0, canvas.getPixelColor(p.x, p.y) - params.stringColor));
 		}
-		/*
-		Point bestPegPos = pegCoords[bestPegNum];
-		bool leftToRight = abs(currPegPos.x - bestPegPos.x) > abs(currPegPos.y - bestPegPos.y);
-		if (leftToRight) {
-			Point start = (currPegPos.x < bestPegPos.x) ? currPegPos : bestPegPos;
-			Point end = (currPegPos.x < bestPegPos.x) ? bestPegPos : currPegPos;
-
-			// slope of line from start to end
-			double m = (double)(end.y - start.y) / (end.x - start.x);
-
-			// draw the line to the canvas
-			for (int x = start.x; x <= end.x; x++) {
-				int y = round(m * (x - start.x) + start.y);
-				canvas.setPixelColor(x, y, max(0, canvas.getPixelColor(x, y) - params.stringColor));
-			}
-
-		} else {
-			// top to bottom
-			Point start = (currPegPos.y < bestPegPos.y) ? currPegPos : bestPegPos;
-			Point end = (currPegPos.y < bestPegPos.y) ? bestPegPos : currPegPos;
-
-			// reciprocal of slope of line from start to end
-			double mInv = (double)(end.x - start.x) / (end.y - start.y);
-
-			// draw the line to the canvas
-			for (int y = start.y; y <= end.y; y++) {
-				int x = round(mInv * (y - start.y) + start.x);
-				canvas.setPixelColor(x, y, max(0, canvas.getPixelColor(x, y) - params.stringColor));
-			}
-		}
-		*/
 
 		currPegNum = bestPegNum;
 		lastPegNums.push_back(currPegNum);
