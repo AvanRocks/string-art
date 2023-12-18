@@ -4,6 +4,8 @@ A software simulation of [string art](https://www.youtube.com/watch?v=WGccIFf6MF
 
 This program replicates photographs by drawing chords of a circle.
 
+![a video demonstration of the string art program](sample-images/face/face-comparison.mp4)
+
 <video width="400" height="200" controls>
   <source src="./sample-images/face/face-comparison.mp4" type="video/mp4">
 </video>
