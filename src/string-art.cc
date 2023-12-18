@@ -204,7 +204,7 @@ void draw(
 			countZero = 0;
 		}
 
-		if (countZero == 1000) {
+		if (countZero == 1000 && params.stopEarly) {
 			cout << "Stopping early due to " << countZero << " consecutive iterations with no improvement" << endl;
 			break;
 		}

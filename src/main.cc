@@ -61,6 +61,7 @@ void setBackgroundColor(StringArtParams &params, string color) { params.backgrou
 void setNumPegs(StringArtParams &params, string numPegs) { params.numPegs = stoi(numPegs); }
 void setNumIters(StringArtParams &params, string numIters) { params.numIters = stoi(numIters); }
 void setMinDist(StringArtParams &params, string minDist) { params.minDist = stoi(minDist); }
+void setStopEarly(StringArtParams &params, string stopEarly) { params.stopEarly = stoi(stopEarly); }
 
 void setCostFunc(StringArtParams &params, string costFunc) { 
 	if (costFunc == "absolute") {
@@ -77,16 +78,17 @@ void usage(char *name);
 
 vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, string>> cliParams 
 {
-	{{"--output",            "-o"},    setOutputFilename,     "set the output image filename"},
-	{{"--rgb",               "-rgb"},  setRGB,                "use red, green, and blue strings to generate a color image"},
-	{{"--line-weight",       "-lw"},   setLineWeight,         "set how dark the program thinks the virtual lines are (0-255)"},
-	{{"--string-weight",     "-sw"},   setStringWeight,       "set how dark the program thinks the string is (0-255)"},
-	{{"--string-color",      "-s"},    setStringColor,        "set the color of the lines used to draw the image"},
-	{{"--background-color",  "-b"},    setBackgroundColor,    "set the background color"},
-	{{"--num-pegs",          "-p"},    setNumPegs,            "set the number of pegs around the circle"},
-	{{"--num-iterations",    "-i"},    setNumIters,           "set the number of lines to be drawn"},
-	{{"--min-dist",          "-m"},    setMinDist,            "set the minimum arc length that lines must subtend, in percent of 360 degrees"},
-	{{"--cost-func",         "-c"},    setCostFunc,           "set the function that determines the perceived difference between colors"},
+	{{"--output",            "-o"},     setOutputFilename,     "set the output image filename"},
+	{{"--rgb",               "-rgb"},   setRGB,                "use red, green, and blue strings to generate a color image"},
+	{{"--line-weight",       "-lw"},    setLineWeight,         "set how dark the program thinks the virtual lines are (0-255)"},
+	{{"--string-weight",     "-sw"},    setStringWeight,       "set how dark the program thinks the string is (0-255)"},
+	{{"--string-color",      "-s"},     setStringColor,        "set the color of the lines used to draw the image"},
+	{{"--background-color",  "-b"},     setBackgroundColor,    "set the background color"},
+	{{"--num-pegs",          "-p"},     setNumPegs,            "set the number of pegs around the circle"},
+	{{"--num-iterations",    "-i"},     setNumIters,           "set the number of lines to be drawn"},
+	{{"--min-dist",          "-m"},     setMinDist,            "set the minimum arc length that lines must subtend, in percent of 360 degrees"},
+	{{"--cost-func",         "-c"},     setCostFunc,           "set the function that determines the perceived difference between colors"},
+	{{"--stop-early",         "-stop"}, setStopEarly,          "stop the generation after 1000 lines with no improvement"},
 	{{"--help",              "-h"},    usage,                 "display this help and exit"}
 };
 

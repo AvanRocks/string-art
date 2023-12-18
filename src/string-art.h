@@ -26,6 +26,7 @@ public:
 	Color backgroundColor {WHITE};
 	int numPegs {200}; 
 	int numIters {10000};
+	bool stopEarly {true};
 
 	// 10 means any line must be between two pegs that are 10% of the circle away from each other
 	int minDist{10};
