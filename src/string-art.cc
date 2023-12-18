@@ -17,6 +17,9 @@ void StringArtParams::validate() const {
 	if (this->inputImageFilename.size() == 0) {
 		throw logic_error("Input image filename is empty.");
 	}
+	if (this->outputFilename.size() == 0) {
+		throw logic_error("Output filename is empty.");
+	}
 }
 
 double euclideanDistanceCost(const Color& c1, const Color& c2) {
@@ -139,14 +142,15 @@ void draw(
 		FILE *pipeout,
 		StringArtParams& params) 
 {
-	int minDistPegs = params.minDist / 100.0 * params.numPegs;
+	// minimum distance between pegs to draw a line between them
+	int minDistPegs = params.minArc / 360.0 * params.numPegs;
 	vector<vector<vector<Point>>> lines {precomputeLines(params.numPegs, reference, minDistPegs)};
 
 	int currPegNum = 0;
 	deque<int> lastPegNums;
 	// count the number of consecutive iterations with zero max improvement
 	int countZero = 0;
-	for (int iter = 0; iter < params.numIters; iter++) {
+	for (int iter = 0; iter < params.numLines; iter++) {
 		if (params.rgb) {
 			// cycle between using red, green, and blue string
 			if (iter % 3 == 0) params.stringColor = Color{255, 0, 0};
