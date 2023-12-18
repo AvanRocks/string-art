@@ -3,9 +3,25 @@
 
 #include <iostream>
 
+struct Color {
+	short red, green, blue;
+	Color(short, short, short);
+	Color(short);
+	Color& operator-=(const Color &other);
+	//Color& clamp();
+	//Color& invert();
+	Color& towards(const Color &other, short amount);
+};
+Color operator-(const Color &lhs, const Color &rhs);
+
+extern Color WHITE;
+extern Color BLACK;
+
+/*
 using Color = short;
 extern Color WHITE;
 extern Color BLACK;
+*/
 
 /*
 struct Color {

@@ -9,6 +9,7 @@ typedef double (*CostFunc)(const Color& c1, const Color& c2);
 
 // sample cost functions
 double absDistanceCost(const Color& p1, const Color& p2);
+double euclideanDistanceCost(const Color& p1, const Color& p2);
 
 /* TODO? 
  *	- transparent background
@@ -18,13 +19,10 @@ class StringArtParams {
 public:
 	std::string inputImageFilename;
 	std::string outputImageFilename {"tmp/string-art.png"};
-	// convert the input image to grayscale
-	bool grayscaleInput {true};
-	// do three drawing passes, one with each of a 
-	// red, green, and blue colored string.
-	bool rgbOutput {false};
-	short lineWeight {20};
-	Color stringColor {20};
+	bool rgb {false};
+	short lineWeight {20}; // virtual line weight
+	short stringWeight {20}; // actual line weight
+	Color stringColor {BLACK};
 	Color backgroundColor {WHITE};
 	int numPegs {200}; 
 	int numIters {10000};
@@ -32,12 +30,12 @@ public:
 	// 10 means any line must be between two pegs that are 10% of the circle away from each other
 	int minDist{10};
 
-	CostFunc costFunc {absDistanceCost};
+	CostFunc costFunc {euclideanDistanceCost};
 
 	// throws errors if any parameters are invalid
 	void validate() const;
 };
 
-void makeStringArt(const StringArtParams& params);
+void makeStringArt(StringArtParams params);
 
 #endif

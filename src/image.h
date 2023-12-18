@@ -26,7 +26,7 @@ public:
 
 	using Sample = Magick::Quantum;
 	struct Pixel {
-		Sample red, green, blue, alpha;
+		Sample blue, green, red, alpha;
 	};
 private:
 	Magick::Image img;

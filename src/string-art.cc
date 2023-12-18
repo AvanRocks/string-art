@@ -20,7 +20,11 @@ void StringArtParams::validate() const {
 }
 
 double absDistanceCost(const Color& c1, const Color& c2) {
-	return abs(c1 - c2);
+	return abs(c1.red - c2.red) + abs(c1.green - c2.green) + abs(c1.blue - c2.blue);
+}
+
+double euclideanDistanceCost(const Color& c1, const Color& c2) {
+	return pow(c1.red - c2.red, 2) + pow(c1.green - c2.green, 2) + pow(c1.blue - c2.blue, 2);
 }
 
 struct Point {
@@ -117,7 +121,7 @@ double calcImprovement(
 		double oldCost = params.costFunc(referenceColor, virtualCanvasColor);
 
 		// color after drawing a line here
-		Color stringColor = max(0, virtualCanvasColor -  params.lineWeight);
+		Color stringColor = virtualCanvasColor.towards(params.stringColor, params.lineWeight);
 
 		double newCost = params.costFunc(referenceColor, stringColor);
 
@@ -125,12 +129,19 @@ double calcImprovement(
 	}
 
 	int numPixelsDrawn = lines[peg1][peg2].size();
-	return totalImprovement / numPixelsDrawn;
+	return (double)totalImprovement / numPixelsDrawn;
 }
 
-// The lines on the virtual canvas are colored as params.lineWeight, while the
-// actualCanvas has lines of color params.stringColor
-void draw(const Image& reference, Image &virtualCanvas, Image& actualCanvas, const StringArtParams& params) {
+void drawLine() {
+}
+
+// returns state {num lines drawn, num lines drawn with no improvement}
+void draw(
+		const Image& reference, 
+		Image &virtualCanvas, 
+		Image &actualCanvas, 
+		StringArtParams& params) 
+{
 	int minDistPegs = params.minDist / 100.0 * params.numPegs;
 	vector<vector<vector<Point>>> lines {precomputeLines(params.numPegs, reference, minDistPegs)};
 
@@ -139,8 +150,14 @@ void draw(const Image& reference, Image &virtualCanvas, Image& actualCanvas, con
 	// count the number of consecutive iterations with zero max improvement
 	int countZero = 0;
 	for (int iter = 0; iter < params.numIters; iter++) {
+		if (params.rgb) {
+			// cycle between using red, green, and blue string
+			if (iter % 3 == 0) params.stringColor = Color{255, 0, 0};
+			else if (iter % 3 == 1) params.stringColor = Color{0, 255, 0};
+			else if (iter % 3 == 2) params.stringColor = Color{0, 0, 255};
+		}
 
-		double maxImprovement = -numeric_limits<double>::infinity();
+		double maxImprovement = numeric_limits<int>::min();
 		int bestPegNum = -1;
 
 		#pragma omp parallel for
@@ -169,12 +186,10 @@ void draw(const Image& reference, Image &virtualCanvas, Image& actualCanvas, con
 			actualCanvas.write(params.outputImageFilename);
 		}
 
-
-		// draw a line with Color params.stringColor onto the actualCanvas
-		// and draw a line with Color params.lineWeight onto the virtualCanvas
+		// draw the best line
 		for (const Point &p : lines[currPegNum][bestPegNum]) {
-			actualCanvas.setPixelColor(p.x, p.y, max(0, actualCanvas.getPixelColor(p.x, p.y) - params.stringColor));
-			virtualCanvas.setPixelColor(p.x, p.y, max(0, virtualCanvas.getPixelColor(p.x, p.y) - params.lineWeight));
+			actualCanvas.setPixelColor(p.x, p.y, actualCanvas.getPixelColor(p.x, p.y).towards(params.stringColor, params.stringWeight));
+			virtualCanvas.setPixelColor(p.x, p.y, virtualCanvas.getPixelColor(p.x, p.y).towards(params.stringColor, params.lineWeight));
 		}
 
 		currPegNum = bestPegNum;
@@ -194,37 +209,22 @@ void draw(const Image& reference, Image &virtualCanvas, Image& actualCanvas, con
 			break;
 		}
 	}
-
 }
 
-void makeStringArt(const StringArtParams& params) {
+void makeStringArt(StringArtParams params) {
 	params.validate();
 
 	Image img {params.inputImageFilename};
 	Image virtualCanvas {params.backgroundColor, img.getWidth(), img.getHeight()};
 	Image actualCanvas {params.backgroundColor, img.getWidth(), img.getHeight()};
 
-	if (params.grayscaleInput) {
+	if (!params.rgb) {
+		// grayscale
 		img.convertToGrayscale();
+		img.write("tmp/grayscale.png");
 	}
-	img.write("tmp/grayscale.png");
 
-	if (params.rgbOutput) {
-		// TODO
-		// do three passes, one for each color
-		StringArtParams newParams {params};
-		/*
-		newParams.stringColor = Color{1, 0, 0};
-		draw(img, virtualCanvas, actualCanvas, newParams);
-		newParams.stringColor = Color{0, 1, 0};
-		draw(img, virtualCanvas, actualCanvas, newParams);
-		newParams.stringColor = Color{0, 0, 1};
-		draw(img, virtualCanvas, actualCanvas, newParams);
-		*/
-	} else {
-		// single pass with specified color
-		draw(img, virtualCanvas, actualCanvas, params);
-	}
+	draw(img, virtualCanvas, actualCanvas, params);
 
 	actualCanvas.write(params.outputImageFilename);
 }

@@ -33,9 +33,9 @@ Image::Image(Color c, size_t width, size_t height)
 											c.green * this->maxSample(),
 											c.blue * this->maxSample(),
 											*/
-											c / 256.0 * this->maxSample(),
-											c / 256.0 * this->maxSample(),
-											c / 256.0 * this->maxSample(),
+											c.red / 255.0 * this->maxSample(),
+											c.green / 255.0 * this->maxSample(),
+											c.blue / 255.0 * this->maxSample(),
 
 											// For Imagemagick 7
 											//this->maxSample()
@@ -125,18 +125,22 @@ Color Image::getPixelColor(unsigned x, unsigned y) const {
 						static_cast<double>(p.blue) / this->maxSample() };
 	return c;
 	*/
-	return ((p.red + p.green + p.blue) / 3.0) * (256.0 / this->maxSample());
+	Color c { (short)(static_cast<double>(p.red) / this->maxSample() * 255), 
+						(short)(static_cast<double>(p.green) / this->maxSample() * 255),
+						(short)(static_cast<double>(p.blue) / this->maxSample() * 255) };
+	return c;
+	//return ((p.red + p.green + p.blue) / 3.0) * (256.0 / this->maxSample());
 }
 
 void Image::setPixelColor(unsigned x, unsigned y, const Color &c) {
 	Pixel& p = get(x, y);
+	p.red = static_cast<Sample>(c.red / 255.0 * this->maxSample());
+	p.green = static_cast<Sample>(c.green / 255.0 * this->maxSample());
+	p.blue = static_cast<Sample>(c.blue / 255.0 * this->maxSample());
 	/*
-	p.red = static_cast<Sample>(c.red * this->maxSample());
-	p.green = static_cast<Sample>(c.green * this->maxSample());
-	p.blue = static_cast<Sample>(c.blue * this->maxSample());
-	*/
 	Sample color = (c / 256.0) * this->maxSample();
 	p.red = color;
 	p.green = color;
 	p.blue = color;
+	*/
 }

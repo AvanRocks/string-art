@@ -29,25 +29,33 @@ int getHexDigit(char c) {
 	}
 }
 
+bool inRange(int val, int min, int max) {
+	return min <= val && val <= max;
+}
+
 Color getColor(string color) {
-	/*
 	if (color[0] == '#') {
 		// hex code
 		int red =  getHexDigit(color[1]) * 16 + getHexDigit(color[2]);
 		int green =  getHexDigit(color[3]) * 16 + getHexDigit(color[4]);
 		int blue =  getHexDigit(color[5]) * 16 + getHexDigit(color[6]);
-		return Color{red / 256.0, green / 256.0, blue / 256.0}; 
+		if (!(inRange(red, 0, 255) && inRange(green, 0, 255) && inRange(blue, 0, 255))) {
+			throw invalid_argument("invalid color");
+		}
+		return Color{(short)red, (short)green, (short)blue};
 	} else {
-		return Color{stod(color.substr(1))};
+		int value = stoi(color);
+		if (inRange(value, 0, 255)) {
+			throw invalid_argument("invalid color");
+		}
+		return Color{(short)stoi(color)};
 	}
-	*/
-	return stoi(color);
 }
 
 void setOutputFilename(StringArtParams &params, string name) { params.outputImageFilename = name; }
-void setGrayscaleInput(StringArtParams &params) { params.grayscaleInput = true; }
-void setRGBOutput(StringArtParams &params) { params.rgbOutput = true; }
+void setRGB(StringArtParams &params) { params.rgb = true; }
 void setLineWeight(StringArtParams &params, string weight) { params.lineWeight = stoi(weight); }
+void setStringWeight(StringArtParams &params, string weight) { params.stringWeight = stoi(weight); }
 void setStringColor(StringArtParams &params, string color) { params.stringColor = getColor(color); }
 void setBackgroundColor(StringArtParams &params, string color) { params.backgroundColor = getColor(color); }
 void setNumPegs(StringArtParams &params, string numPegs) { params.numPegs = stoi(numPegs); }
@@ -55,8 +63,11 @@ void setNumIters(StringArtParams &params, string numIters) { params.numIters = s
 void setMinDist(StringArtParams &params, string minDist) { params.minDist = stoi(minDist); }
 
 void setCostFunc(StringArtParams &params, string costFunc) { 
-	if (costFunc == "abs") {
+	if (costFunc == "absolute") {
 		params.costFunc = absDistanceCost;
+	} else if (costFunc == "euclidean") {
+		params.costFunc = euclideanDistanceCost;
+	} else if (costFunc == "euclidean") {
 	} else {
 		cout << "Unrecognized cost function" << endl;
 	}
@@ -67,9 +78,9 @@ void usage(char *name);
 vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, string>> cliParams 
 {
 	{{"--output",            "-o"},    setOutputFilename,     "set the output image filename"},
-	{{"--grayscale-input",   "-g"},    setGrayscaleInput,     "convert the input image to grayscale"},
-	{{"--rgb-output",        "-rgb"},  setRGBOutput,          "use red, green, and blue strings to generate a color image"},
-	{{"--line-weight",       "-l"},    setLineWeight,         "set how dark the program thinks the line is (0-255)"},
+	{{"--rgb",               "-rgb"},  setRGB,                "use red, green, and blue strings to generate a color image"},
+	{{"--line-weight",       "-lw"},   setLineWeight,         "set how dark the program thinks the virtual lines are (0-255)"},
+	{{"--string-weight",     "-sw"},   setStringWeight,       "set how dark the program thinks the string is (0-255)"},
 	{{"--string-color",      "-s"},    setStringColor,        "set the color of the lines used to draw the image"},
 	{{"--background-color",  "-b"},    setBackgroundColor,    "set the background color"},
 	{{"--num-pegs",          "-p"},    setNumPegs,            "set the number of pegs around the circle"},
