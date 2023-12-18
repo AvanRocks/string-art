@@ -153,7 +153,11 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
-	makeStringArt(params);
+	try {
+		makeStringArt(params);
+	} catch (const exception &e) {
+		cout << "Error: " << e.what() << endl;
+	}
 
 	return 0;
 }

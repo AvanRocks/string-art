@@ -231,6 +231,10 @@ void makeStringArt(StringArtParams params) {
 	Image virtualCanvas {params.backgroundColor, img.getWidth(), img.getHeight()};
 	Image actualCanvas {params.backgroundColor, img.getWidth(), img.getHeight()};
 
+	if (params.video && !(img.getWidth() % 2 ==0 && img.getHeight() % 2 == 0)) {
+		throw runtime_error("image width and height must be even when making a video"); 
+	}
+
 	if (!params.rgb) {
 		// grayscale
 		img.convertToGrayscale();
@@ -248,7 +252,7 @@ void makeStringArt(StringArtParams params) {
 													" -vcodec libx264 -crf 24 -pix_fmt yuv420p " +
 													+ " " + 
 													params.outputFilename
-													+ " 2> /dev/null";
+													+ " 2>&1 /dev/null";
 
     pipeout = popen(ffmpeg_cmd.c_str(), "w");
 	}
