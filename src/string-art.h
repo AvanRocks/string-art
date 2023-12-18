@@ -18,7 +18,7 @@ double euclideanDistanceCost(const Color& p1, const Color& p2);
 class StringArtParams {
 public:
 	std::string inputImageFilename;
-	std::string outputImageFilename {"tmp/string-art.png"};
+	std::string outputFilename {"tmp/string-art.png"};
 	bool rgb {false};
 	short lineWeight {20}; // virtual line weight
 	short stringWeight {20}; // actual line weight
@@ -26,7 +26,10 @@ public:
 	Color backgroundColor {WHITE};
 	int numPegs {200}; 
 	int numIters {10000};
-	bool stopEarly {true};
+	bool stopEarly {false};
+	bool video {false};
+	int numStringsPerFrame {100};
+	int fps {10};
 
 	// 10 means any line must be between two pegs that are 10% of the circle away from each other
 	int minDist{10};

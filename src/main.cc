@@ -52,7 +52,7 @@ Color getColor(string color) {
 	}
 }
 
-void setOutputFilename(StringArtParams &params, string name) { params.outputImageFilename = name; }
+void setOutputFilename(StringArtParams &params, string name) { params.outputFilename = name; }
 void setRGB(StringArtParams &params) { params.rgb = true; }
 void setLineWeight(StringArtParams &params, string weight) { params.lineWeight = stoi(weight); }
 void setStringWeight(StringArtParams &params, string weight) { params.stringWeight = stoi(weight); }
@@ -61,7 +61,8 @@ void setBackgroundColor(StringArtParams &params, string color) { params.backgrou
 void setNumPegs(StringArtParams &params, string numPegs) { params.numPegs = stoi(numPegs); }
 void setNumIters(StringArtParams &params, string numIters) { params.numIters = stoi(numIters); }
 void setMinDist(StringArtParams &params, string minDist) { params.minDist = stoi(minDist); }
-void setStopEarly(StringArtParams &params, string stopEarly) { params.stopEarly = stoi(stopEarly); }
+void setStopEarly(StringArtParams &params) { params.stopEarly = true; }
+void setVideo(StringArtParams &params) { params.video = true; }
 
 void setCostFunc(StringArtParams &params, string costFunc) { 
 	if (costFunc == "absolute") {
@@ -78,7 +79,7 @@ void usage(char *name);
 
 vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, string>> cliParams 
 {
-	{{"--output",            "-o"},     setOutputFilename,     "set the output image filename"},
+	{{"--output",            "-o"},     setOutputFilename,     "set the output filename"},
 	{{"--rgb",               "-rgb"},   setRGB,                "use red, green, and blue strings to generate a color image"},
 	{{"--line-weight",       "-lw"},    setLineWeight,         "set how dark the program thinks the virtual lines are (0-255)"},
 	{{"--string-weight",     "-sw"},    setStringWeight,       "set how dark the program thinks the string is (0-255)"},
@@ -88,8 +89,9 @@ vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, st
 	{{"--num-iterations",    "-i"},     setNumIters,           "set the number of lines to be drawn"},
 	{{"--min-dist",          "-m"},     setMinDist,            "set the minimum arc length that lines must subtend, in percent of 360 degrees"},
 	{{"--cost-func",         "-c"},     setCostFunc,           "set the function that determines the perceived difference between colors"},
-	{{"--stop-early",         "-stop"}, setStopEarly,          "stop the generation after 1000 lines with no improvement"},
-	{{"--help",              "-h"},    usage,                 "display this help and exit"}
+	{{"--stop-early",        "-stop"},  setStopEarly,          "stop the generation after 1000 lines with no improvement"},
+	{{"--video",             "-v"},     setVideo,              "output a video of the drawing process"},
+	{{"--help",              "-h"},     usage,                 "display this help and exit"}
 };
 
 void usage(char *name) {

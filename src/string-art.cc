@@ -140,6 +140,7 @@ void draw(
 		const Image& reference, 
 		Image &virtualCanvas, 
 		Image &actualCanvas, 
+		FILE *pipeout,
 		StringArtParams& params) 
 {
 	int minDistPegs = params.minDist / 100.0 * params.numPegs;
@@ -180,10 +181,22 @@ void draw(
 			throw runtime_error("no pegs available to draw to");
 		}
 
-		if (iter % 1000 == 0) {
-			cout << "done " << iter << endl;
-			cout << "max improvement " << maxImprovement << endl;
-			actualCanvas.write(params.outputImageFilename);
+		if (params.video) {
+			// write a frame
+			if (iter % params.numStringsPerFrame == 0) {
+				if (pipeout == nullptr) {
+					throw runtime_error("pipe is null");
+				}
+				actualCanvas.writeToPipe(pipeout);
+			}
+		} else {
+			if (iter % 1000 == 0) {
+				cout << "done " << iter << endl;
+				cout << "max improvement " << maxImprovement << endl;
+				if (!params.video) {
+					actualCanvas.write(params.outputFilename);
+				}
+			}
 		}
 
 		// draw the best line
@@ -223,8 +236,31 @@ void makeStringArt(StringArtParams params) {
 		img.convertToGrayscale();
 	}
 
-	draw(img, virtualCanvas, actualCanvas, params);
+  FILE *pipeout = nullptr;
+	if (params.video) {
+		// See https://stackoverflow.com/questions/72884815/how-to-stream-frames-from-opencv-c-code-to-video4linux-or-ffmpeg
+		int width = actualCanvas.getWidth();
+		int height = actualCanvas.getHeight();
 
-	actualCanvas.write(params.outputImageFilename);
+    string ffmpeg_cmd = "ffmpeg -y -f rawvideo -r " + to_string(params.fps) +
+                          " -video_size " + to_string(width) + "x" + to_string(height) +
+                          " -pixel_format bgr24 -i pipe: " +
+													" -vcodec libx264 -crf 24 -pix_fmt yuv420p " +
+													+ " " + 
+													params.outputFilename;
+
+    pipeout = popen(ffmpeg_cmd.c_str(), "w");
+	}
+
+	draw(img, virtualCanvas, actualCanvas, pipeout, params);
+
+	if (pipeout != nullptr) {
+		fflush(pipeout);
+		pclose(pipeout);
+	}
+
+	if (!params.video) {
+		actualCanvas.write(params.outputFilename);
+	}
 }
 

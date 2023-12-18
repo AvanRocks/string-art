@@ -2,6 +2,7 @@
 #define IMAGE_H
 
 #include <string>
+#include <cstdio>
 
 #include <Magick++.h>
 
@@ -16,6 +17,7 @@ public:
 
 	void convertToGrayscale();
 	void write(std::string filename);
+	void writeToPipe(std::FILE *pipe);
 
 	unsigned getWidth() const;
 	unsigned getHeight() const;

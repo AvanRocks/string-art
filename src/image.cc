@@ -88,6 +88,25 @@ void Image::write(std::string filename) {
 	}
 }
 
+void Image::writeToPipe(std::FILE *pipe) {
+	int width = this->getWidth();
+	int height = this->getHeight();
+	int sample_depth = 3;
+	int size = width * height * sample_depth;
+	char *frameData = new char[size];
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			int idx = (y * width + x) * sample_depth;
+			// use bgr24 pixel format
+			Color c {this->getPixelColor(x, y)};
+			frameData[idx] = (unsigned char) c.blue;
+			frameData[idx + 1] = (unsigned char) c.green;
+			frameData[idx + 2] = (unsigned char) c.red;
+		}
+	}
+	fwrite(frameData, 1, size, pipe);
+}
+
 // 0-indexed
 Image::Pixel& Image::get(size_t x, size_t y) {
 	return const_cast<Pixel&>(const_cast<const Image*>(this)->get(x, y));
