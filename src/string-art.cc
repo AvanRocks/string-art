@@ -95,7 +95,6 @@ vector<vector<vector<Point>>> precomputeLines(const int numPegs, const Image &im
 			size += lines[endPeg][startPeg].size();
 		}
 	}
-	cout << "lines cache size: " << size << endl;
 	endStopwatch();
 	return lines;
 }
@@ -192,8 +191,8 @@ void draw(
 		}
 
 		if (iter % 1000 == 0) {
-			cout << "done " << iter << endl;
-			cout << "max improvement " << maxImprovement << endl;
+			cout << "finished " << iter << " iterations" << endl;
+			cout << "max improvement in this iteration: " << maxImprovement << endl;
 			if (!params.video) {
 				actualCanvas.write(params.outputFilename);
 			}
@@ -246,13 +245,13 @@ void makeStringArt(StringArtParams params) {
 		int width = actualCanvas.getWidth();
 		int height = actualCanvas.getHeight();
 
-    string ffmpeg_cmd = "ffmpeg -y -f rawvideo -r " + to_string(params.fps) +
-                          " -video_size " + to_string(width) + "x" + to_string(height) +
+    string ffmpeg_cmd = string("ffmpeg -y -loglevel quiet") + 
+													" -f rawvideo -r " + to_string(params.fps) +
+													" -video_size " + to_string(width) + "x" + to_string(height) +
                           " -pixel_format bgr24 -i pipe: " +
 													" -vcodec libx264 -crf 24 -pix_fmt yuv420p " +
 													+ " " + 
-													params.outputFilename
-													+ " 2>&1 /dev/null";
+													params.outputFilename;
 
     pipeout = popen(ffmpeg_cmd.c_str(), "w");
 	}
