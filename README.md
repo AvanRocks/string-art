@@ -4,13 +4,7 @@ A software simulation of [string art](https://www.youtube.com/watch?v=WGccIFf6MF
 
 This program replicates photographs by drawing chords of a circle.
 
-![a video demonstration of the string art program](sample-images/face/face-comparison.mp4)
-
 https://github.com/AvanRocks/string-art/assets/64660241/1bce6079-76bd-4fba-9d46-21c9407ba41e
-
-<video width="400" height="200" controls>
-  <source src="./sample-images/face/face-comparison.mp4" type="video/mp4">
-</video>
 
 ![a string art image of a house](sample-images/house/house-comparison.png)
 
