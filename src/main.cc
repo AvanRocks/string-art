@@ -40,13 +40,13 @@ Color getColor(string color) {
 		int green =  getHexDigit(color[3]) * 16 + getHexDigit(color[4]);
 		int blue =  getHexDigit(color[5]) * 16 + getHexDigit(color[6]);
 		if (!(inRange(red, 0, 255) && inRange(green, 0, 255) && inRange(blue, 0, 255))) {
-			throw invalid_argument("invalid color");
+			throw invalid_argument("invalid color hex code: " + color);
 		}
 		return Color{(short)red, (short)green, (short)blue};
 	} else {
 		int value = stoi(color);
-		if (inRange(value, 0, 255)) {
-			throw invalid_argument("invalid color");
+		if (!inRange(value, 0, 255)) {
+			throw invalid_argument("invalid color: " + color);
 		}
 		return Color{(short)stoi(color)};
 	}
