@@ -5,12 +5,6 @@
 
 #include "color.h"
 
-typedef double (*CostFunc)(const Color& c1, const Color& c2);
-
-// sample cost functions
-double absDistanceCost(const Color& p1, const Color& p2);
-double euclideanDistanceCost(const Color& p1, const Color& p2);
-
 /* TODO? 
  *	- transparent background
  *	- crop image to circle
@@ -31,10 +25,8 @@ public:
 	int numStringsPerFrame {100};
 	int fps {10};
 
-	// 10 means any line must be between two pegs that are 10% of the circle away from each other
-	int minDist{10};
-
-	CostFunc costFunc {euclideanDistanceCost};
+	// For example, 10 means any line must be between two pegs that are 10% of the circle away from each other
+	int minDist{0};
 
 	// throws errors if any parameters are invalid
 	void validate() const;

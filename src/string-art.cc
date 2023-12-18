@@ -19,10 +19,6 @@ void StringArtParams::validate() const {
 	}
 }
 
-double absDistanceCost(const Color& c1, const Color& c2) {
-	return abs(c1.red - c2.red) + abs(c1.green - c2.green) + abs(c1.blue - c2.blue);
-}
-
 double euclideanDistanceCost(const Color& c1, const Color& c2) {
 	return pow(c1.red - c2.red, 2) + pow(c1.green - c2.green, 2) + pow(c1.blue - c2.blue, 2);
 }
@@ -118,12 +114,12 @@ double calcImprovement(
 		Color referenceColor = reference.getPixelColor(p.x, p.y);
 		Color virtualCanvasColor = virtualCanvas.getPixelColor(p.x, p.y);
 
-		double oldCost = params.costFunc(referenceColor, virtualCanvasColor);
+		double oldCost = euclideanDistanceCost(referenceColor, virtualCanvasColor);
 
 		// color after drawing a line here
 		Color stringColor = virtualCanvasColor.towards(params.stringColor, params.lineWeight);
 
-		double newCost = params.costFunc(referenceColor, stringColor);
+		double newCost = euclideanDistanceCost(referenceColor, stringColor);
 
 		totalImprovement += oldCost - newCost;
 	}
@@ -189,13 +185,13 @@ void draw(
 				}
 				actualCanvas.writeToPipe(pipeout);
 			}
-		} else {
-			if (iter % 1000 == 0) {
-				cout << "done " << iter << endl;
-				cout << "max improvement " << maxImprovement << endl;
-				if (!params.video) {
-					actualCanvas.write(params.outputFilename);
-				}
+		}
+
+		if (iter % 1000 == 0) {
+			cout << "done " << iter << endl;
+			cout << "max improvement " << maxImprovement << endl;
+			if (!params.video) {
+				actualCanvas.write(params.outputFilename);
 			}
 		}
 
@@ -247,7 +243,8 @@ void makeStringArt(StringArtParams params) {
                           " -pixel_format bgr24 -i pipe: " +
 													" -vcodec libx264 -crf 24 -pix_fmt yuv420p " +
 													+ " " + 
-													params.outputFilename;
+													params.outputFilename
+													+ " 2> /dev/null";
 
     pipeout = popen(ffmpeg_cmd.c_str(), "w");
 	}

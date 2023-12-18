@@ -64,17 +64,6 @@ void setMinDist(StringArtParams &params, string minDist) { params.minDist = stoi
 void setStopEarly(StringArtParams &params) { params.stopEarly = true; }
 void setVideo(StringArtParams &params) { params.video = true; }
 
-void setCostFunc(StringArtParams &params, string costFunc) { 
-	if (costFunc == "absolute") {
-		params.costFunc = absDistanceCost;
-	} else if (costFunc == "euclidean") {
-		params.costFunc = euclideanDistanceCost;
-	} else if (costFunc == "euclidean") {
-	} else {
-		cout << "Unrecognized cost function" << endl;
-	}
-}
-
 void usage(char *name);
 
 vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, string>> cliParams 
@@ -88,7 +77,6 @@ vector<tuple<vector<string>, variant<NoParamFunc, StringParamFunc, HelpFunc>, st
 	{{"--num-pegs",          "-p"},     setNumPegs,            "set the number of pegs around the circle"},
 	{{"--num-iterations",    "-i"},     setNumIters,           "set the number of lines to be drawn"},
 	{{"--min-dist",          "-m"},     setMinDist,            "set the minimum arc length that lines must subtend, in percent of 360 degrees"},
-	{{"--cost-func",         "-c"},     setCostFunc,           "set the function that determines the perceived difference between colors"},
 	{{"--stop-early",        "-stop"},  setStopEarly,          "stop the generation after 1000 lines with no improvement"},
 	{{"--video",             "-v"},     setVideo,              "output a video of the drawing process"},
 	{{"--help",              "-h"},     usage,                 "display this help and exit"}
@@ -164,18 +152,6 @@ int main(int argc, char **argv) {
 		usage(argv[0]);
 		exit(1);
 	}
-
-	/*
-	//params.inputImageFilename = "images/new-face-1000.jpg";
-	params.inputImageFilename = "images/test-1000.png";
-	params.stringColor = Color{0.1};
-	params.backgroundColor = Color{0.9};
-	params.numPegs = 400;
-	params.numIters = 20000;
-	params.rectSize = 10;
-	//params.thicknessFunc = flatThickness;
-	//params.costFunc = absDistanceCost;
-	*/
 
 	makeStringArt(params);
 
