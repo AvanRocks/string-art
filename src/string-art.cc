@@ -221,7 +221,6 @@ void makeStringArt(StringArtParams params) {
 	if (!params.rgb) {
 		// grayscale
 		img.convertToGrayscale();
-		img.write("tmp/grayscale.png");
 	}
 
 	draw(img, virtualCanvas, actualCanvas, params);
